@@ -1,35 +1,10 @@
 import React, { useMemo, useState } from "react";
 import AppShell from "../components/layout/AppShell";
-import DashboardCharts from "../components/charts/DashboardCharts";
 import TaskDetailModal from "../components/tasks/TaskDetailModal";
 
 import { useTasks } from "../hooks/useTasks";
 import { useClients } from "../hooks/useClients";
 import { useCollaborators } from "../hooks/useCollaborators";
-
-import { useDashboardSummary } from "../hooks/useDashboardSummary";
-import { useDashboardTimeseries } from "../hooks/useDashboardTimeseries";
-import { useDashboardByType } from "../hooks/useDashboardByType";
-import { useDashboardByCollaborator } from "../hooks/useDashboardByCollaborator";
-
-function KPI({ title, value, accent = "blue" }) {
-  const bar =
-    accent === "orange"
-      ? "bg-[#D17745]"
-      : accent === "green"
-      ? "bg-emerald-500"
-      : "bg-[#1177B6]";
-
-  return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm">
-      <div className={`h-1.5 ${bar}`} />
-      <div className="p-4">
-        <div className="text-sm text-slate-500">{title}</div>
-        <div className="mt-1 text-3xl font-semibold text-slate-900">{value}</div>
-      </div>
-    </div>
-  );
-}
 
 function Badge({ children, variant = "neutral" }) {
   const styles =
@@ -46,10 +21,10 @@ function Badge({ children, variant = "neutral" }) {
   );
 }
 
-export default function DashboardPage() {
+export default function TasksPage() {
   // filtros
   const [q, setQ] = useState("");
-  const [finished, setFinished] = useState(""); // "" | "true" | "false"
+  const [finished, setFinished] = useState("");
   const [clientId, setClientId] = useState("");
   const [collaboratorId, setCollaboratorId] = useState("");
 
@@ -66,26 +41,8 @@ export default function DashboardPage() {
   const clientsQuery = useClients();
   const collaboratorsQuery = useCollaborators();
 
-  // métricas (tu data está en 2025 → usamos 3650)
-  const summaryQuery = useDashboardSummary();
-  const timeseriesQuery = useDashboardTimeseries(3650);
-  const byTypeQuery = useDashboardByType(3650);
-  const byCollaboratorQuery = useDashboardByCollaborator(3650, 10);
-
-  const summary = summaryQuery.data ?? { total: 0, pending: 0, finished: 0 };
-
   const items = tasksQuery.data?.items ?? [];
   const pagination = tasksQuery.data?.pagination ?? { total: 0, limit, offset };
-
-  const series = timeseriesQuery.data?.items ?? [];
-  const byType = byTypeQuery.data?.items ?? [];
-  const byCollab = byCollaboratorQuery.data?.items ?? [];
-
-  const chartsLoading =
-    timeseriesQuery.isLoading || byTypeQuery.isLoading || byCollaboratorQuery.isLoading;
-
-  const chartsError =
-    timeseriesQuery.isError || byTypeQuery.isError || byCollaboratorQuery.isError;
 
   const canPrev = offset > 0;
   const canNext = offset + limit < (pagination.total ?? 0);
@@ -100,54 +57,21 @@ export default function DashboardPage() {
 
   return (
     <AppShell>
-      {/* Header */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-slate-900">Dashboard</h2>
-          <p className="text-sm text-slate-500">Tickets • métricas operativas</p>
+          <h2 className="text-xl font-semibold text-slate-900">Tareas</h2>
+          <p className="text-sm text-slate-500">Operación diaria • filtros y listado</p>
         </div>
 
         <button
-          onClick={() => {
-            tasksQuery.refetch();
-            summaryQuery.refetch();
-            timeseriesQuery.refetch();
-            byTypeQuery.refetch();
-            byCollaboratorQuery.refetch();
-          }}
+          onClick={() => tasksQuery.refetch()}
           className="w-full rounded-xl bg-[#1177B6] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 sm:w-auto"
         >
           Refrescar
         </button>
       </div>
 
-      {/* KPIs */}
-      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <KPI title="Total" value={summaryQuery.isLoading ? "…" : summary.total} accent="blue" />
-        <KPI title="Pendientes" value={summaryQuery.isLoading ? "…" : summary.pending} accent="orange" />
-        <KPI title="Finalizadas" value={summaryQuery.isLoading ? "…" : summary.finished} accent="green" />
-      </div>
-
-      {/* Charts */}
-      <div className="mb-6">
-        {chartsLoading ? (
-          <div className="rounded-2xl border border-slate-200/70 bg-white p-4 text-sm text-slate-500 shadow-sm">
-            Cargando gráficas…
-          </div>
-        ) : chartsError ? (
-          <div className="rounded-2xl border border-slate-200/70 bg-white p-4 text-sm text-red-600 shadow-sm">
-            Error cargando gráficas (revisa /api/dashboard/*)
-          </div>
-        ) : (
-          <DashboardCharts
-            timeseriesItems={series}
-            byTypeItems={byType}
-            byCollaboratorItems={byCollab}
-          />
-        )}
-      </div>
-
-      {/* ✅ FILTROS (renderizan sí o sí) */}
+      {/* Filtros */}
       <div className="mb-4 overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm">
         <div className="border-b border-slate-200/70 bg-slate-50 p-4">
           <div className="text-sm font-semibold text-slate-900">Filtros</div>
@@ -156,7 +80,6 @@ export default function DashboardPage() {
 
         <div className="p-4">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
-            {/* Buscar */}
             <div className="md:col-span-2">
               <label className="text-xs font-medium text-slate-600">Buscar</label>
               <input
@@ -170,7 +93,6 @@ export default function DashboardPage() {
               />
             </div>
 
-            {/* Estado */}
             <div>
               <label className="text-xs font-medium text-slate-600">Estado</label>
               <select
@@ -187,7 +109,6 @@ export default function DashboardPage() {
               </select>
             </div>
 
-            {/* Cliente */}
             <div>
               <label className="text-xs font-medium text-slate-600">Cliente</label>
               <select
@@ -208,7 +129,6 @@ export default function DashboardPage() {
               </select>
             </div>
 
-            {/* Colaborador */}
             <div>
               <label className="text-xs font-medium text-slate-600">Colaborador</label>
               <select
@@ -229,7 +149,6 @@ export default function DashboardPage() {
               </select>
             </div>
 
-            {/* Tamaño */}
             <div>
               <label className="text-xs font-medium text-slate-600">Tamaño</label>
               <select
@@ -248,7 +167,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Botón limpiar */}
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <button
               onClick={() => {
@@ -264,7 +182,9 @@ export default function DashboardPage() {
               Limpiar filtros
             </button>
 
-            <div className="text-xs text-slate-500">{tasksQuery.isFetching ? "Actualizando…" : showingText}</div>
+            <div className="text-xs text-slate-500">
+              {tasksQuery.isFetching ? "Actualizando…" : showingText}
+            </div>
           </div>
         </div>
       </div>
@@ -318,9 +238,7 @@ export default function DashboardPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-slate-700">{t.clientName ?? t.clientId ?? "-"}</td>
-                    <td className="px-4 py-3 text-slate-700">
-                      {t.collaboratorName ?? t.collaboratorId ?? "-"}
-                    </td>
+                    <td className="px-4 py-3 text-slate-700">{t.collaboratorName ?? t.collaboratorId ?? "-"}</td>
                     <td className="px-4 py-3">
                       <Badge variant="neutral">{t.typeName ?? t.typeId ?? "-"}</Badge>
                     </td>
@@ -339,7 +257,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Paginación */}
         <div className="flex items-center justify-between border-t border-slate-200/70 p-4">
           <button
             disabled={!canPrev}
@@ -358,7 +275,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Modal */}
       <TaskDetailModal
         open={isModalOpen}
         task={selectedTask}

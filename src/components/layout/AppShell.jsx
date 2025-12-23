@@ -1,71 +1,52 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 
+function SidebarLink({ to, label }) {
+  return (
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        [
+          "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition",
+          isActive
+            ? "bg-[#1177B6] text-white shadow-sm"
+            : "text-slate-700 hover:bg-slate-100",
+        ].join(" ")
+      }
+      end
+    >
+      <span className="h-2 w-2 rounded-full bg-current opacity-70" />
+      {label}
+    </NavLink>
+  );
+}
+
 export default function AppShell({ children }) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-slate-50 to-slate-100 text-slate-900">
-      <div className="flex">
+    <div className="min-h-screen bg-slate-50">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 p-4 lg:grid-cols-[260px_1fr]">
         {/* Sidebar */}
-        <aside className="hidden md:flex md:w-64 md:flex-col md:gap-6 md:border-r md:border-slate-200/70 md:bg-white/70 md:backdrop-blur md:p-5">
-          {/* Brand */}
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-lira-blue to-lira-orange shadow-sm" />
-            <div>
-              <div className="text-sm font-semibold leading-4">LIRA</div>
-              <div className="text-xs text-slate-500">Seguridad • Tickets</div>
-            </div>
+        <aside className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
+          <div className="mb-4">
+            <div className="text-lg font-extrabold text-slate-900">LIRA</div>
+            <div className="text-xs text-slate-500">Dashboard Operativo</div>
           </div>
 
-          {/* Navigation */}
-          <nav className="flex flex-col gap-1">
-            {[
-              { to: "/", label: "Tareas", end: true },
-              { to: "/clients", label: "Clientes" },
-              { to: "/collaborators", label: "Colaboradores" },
-            ].map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  "rounded-xl px-3 py-2 text-sm font-medium transition " +
-                  (isActive
-                    ? "bg-lira-blue text-white shadow-sm"
-                    : "text-slate-700 hover:bg-white hover:shadow-sm")
-                }
-              >
-                {item.label}
-              </NavLink>
-            ))}
+          <nav className="flex flex-col gap-2">
+            <SidebarLink to="/metrics" label="Métricas" />
+            <SidebarLink to="/tasks" label="Tareas" />
+            <SidebarLink to="/clients" label="Clientes" />
+            <SidebarLink to="/collaborators" label="Colaboradores" />
           </nav>
 
-          {/* Footer sidebar */}
-          <div className="mt-auto rounded-2xl border border-slate-200/70 bg-white/70 p-3 text-xs text-slate-600 shadow-sm">
-            Realtime: <span className="font-semibold text-emerald-600">ON</span>
+          <div className="mt-6 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+            <div className="font-semibold text-slate-800">Tip</div>
+            Separamos Métricas (gerencia) y Tareas (operación) para escalar fácil.
           </div>
         </aside>
 
         {/* Main */}
-        <div className="flex-1">
-          {/* Topbar */}
-          <header className="sticky top-0 z-10 border-b border-slate-200/70 bg-white/60 backdrop-blur">
-            <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-              <div>
-                <h1 className="text-lg font-semibold">Dashboard</h1>
-                <p className="text-xs text-slate-500">
-                  Operación y monitoreo de tareas
-                </p>
-              </div>
-
-              {/* Si no lo quieres, bórralo */}
-              <div className="rounded-2xl border border-slate-200/70 bg-white/70 px-3 py-2 text-sm text-slate-700 shadow-sm">
-                Backend: <span className="font-semibold">localhost</span>
-              </div>
-            </div>
-          </header>
-
-          <main className="mx-auto max-w-6xl p-6">{children}</main>
-        </div>
+        <main className="min-w-0">{children}</main>
       </div>
     </div>
   );
