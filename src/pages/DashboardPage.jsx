@@ -5,14 +5,35 @@ import { useTasks } from "../hooks/useTasks";
 import { useClients } from "../hooks/useClients";
 import { useCollaborators } from "../hooks/useCollaborators";
 import { useDashboardSummary } from "../hooks/useDashboardSummary";
+import { useDashboardTimeseries } from "../hooks/useDashboardTimeseries";
 
+import DashboardCharts from "../components/charts/DashboardCharts";
 import TaskDetailModal from "../components/tasks/TaskDetailModal";
 
-function StatCard({ title, value }) {
+/* ---------- UI ---------- */
+
+function KPI({ title, value, accent = "blue", subtitle }) {
+  const bar =
+    accent === "orange"
+      ? "bg-lira-orange"
+      : accent === "green"
+      ? "bg-emerald-500"
+      : "bg-lira-blue";
+
   return (
-    <div className="rounded-2xl border bg-white p-4 shadow-sm">
-      <div className="text-sm text-slate-500">{title}</div>
-      <div className="mt-1 text-2xl font-semibold text-slate-900">{value}</div>
+    <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm">
+      <div className={`h-1.5 ${bar}`} />
+      <div className="p-4">
+        <div className="text-sm text-slate-500">{title}</div>
+        <div className="mt-1 flex items-end justify-between">
+          <div className="text-3xl font-semibold text-slate-900">{value}</div>
+          {subtitle && (
+            <span className="rounded-xl bg-slate-50 px-2 py-1 text-xs text-slate-600">
+              {subtitle}
+            </span>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -20,17 +41,14 @@ function StatCard({ title, value }) {
 function Badge({ children, variant = "neutral" }) {
   const styles =
     variant === "success"
-      ? "bg-emerald-50 text-emerald-700"
+      ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
       : variant === "warning"
-      ? "bg-amber-50 text-amber-700"
-      : "bg-slate-100 text-slate-700";
+      ? "bg-lira-orange/15 text-lira-orange border border-lira-orange/30"
+      : "bg-slate-100 text-slate-700 border border-slate-200/70";
 
   return (
     <span
-      className={
-        "inline-flex items-center rounded-full px-2 py-1 text-xs font-medium " +
-        styles
-      }
+      className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${styles}`}
     >
       {children}
     </span>
@@ -66,9 +84,12 @@ export default function DashboardPage() {
   const clientsQuery = useClients();
   const collaboratorsQuery = useCollaborators();
 
+  // 👇 NUEVO: timeseries para gráficas (bien hecho)
+  const timeseriesQuery = useDashboardTimeseries(30);
+  const series = timeseriesQuery.data?.items ?? [];
+
   const items = tasksQuery.data?.items ?? [];
   const pagination = tasksQuery.data?.pagination ?? { total: 0 };
-
   const summary = summaryQuery.data ?? { total: 0, pending: 0, finished: 0 };
 
   const canPrev = offset > 0;
@@ -76,13 +97,13 @@ export default function DashboardPage() {
 
   return (
     <AppShell>
-      {/* Header interno */}
+      {/* HEADER */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-slate-900">Tareas</h2>
           <p className="text-sm text-slate-500">
-            Visualiza y filtra tareas en tiempo real{" "}
-            {tasksQuery.isFetching || summaryQuery.isFetching
+            Operación en tiempo real{" "}
+            {tasksQuery.isFetching || summaryQuery.isFetching || timeseriesQuery.isFetching
               ? "• actualizando..."
               : "• en línea"}
           </p>
@@ -92,6 +113,7 @@ export default function DashboardPage() {
           onClick={() => {
             tasksQuery.refetch();
             summaryQuery.refetch();
+            timeseriesQuery.refetch();
           }}
           className="w-full rounded-xl bg-lira-blue px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 sm:w-auto"
         >
@@ -101,23 +123,43 @@ export default function DashboardPage() {
 
       {/* KPIs */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard
+        <KPI
           title="Total"
           value={summaryQuery.isLoading ? "…" : summary.total}
+          accent="blue"
+          subtitle="Todos"
         />
-        <StatCard
+        <KPI
           title="Pendientes"
           value={summaryQuery.isLoading ? "…" : summary.pending}
+          accent="orange"
+          subtitle="Requiere acción"
         />
-        <StatCard
+        <KPI
           title="Finalizadas"
           value={summaryQuery.isLoading ? "…" : summary.finished}
+          accent="green"
+          subtitle="Completadas"
         />
+      </div>
+
+      {/* 👇 GRÁFICAS (NUEVO) */}
+      <div className="mb-6">
+        {timeseriesQuery.isLoading ? (
+          <div className="rounded-2xl border border-slate-200/70 bg-white p-4 text-sm text-slate-500 shadow-sm">
+            Cargando gráficas…
+          </div>
+        ) : timeseriesQuery.isError ? (
+          <div className="rounded-2xl border border-slate-200/70 bg-white p-4 text-sm text-red-600 shadow-sm">
+            Error cargando gráficas
+          </div>
+        ) : (
+          <DashboardCharts timeseriesItems={series} />
+        )}
       </div>
 
       {/* FILTROS (panel pro) */}
       <div className="mb-4 overflow-hidden rounded-2xl border border-slate-200/70 bg-white/70 shadow-sm backdrop-blur">
-        {/* header del panel */}
         <div className="border-b border-slate-200/70 bg-gradient-to-r from-white to-slate-50 p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -138,7 +180,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* contenido */}
         <div className="p-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
             {/* Buscar */}
@@ -200,9 +241,7 @@ export default function DashboardPage() {
 
             {/* Colaborador */}
             <div>
-              <label className="text-xs font-medium text-slate-600">
-                Colaborador
-              </label>
+              <label className="text-xs font-medium text-slate-600">Colaborador</label>
               <select
                 disabled={collaboratorsQuery.isLoading}
                 value={collaboratorId}
@@ -240,7 +279,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* acciones */}
           <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <button
               onClick={() => {
@@ -260,6 +298,7 @@ export default function DashboardPage() {
               onClick={() => {
                 tasksQuery.refetch();
                 summaryQuery.refetch();
+                timeseriesQuery.refetch();
               }}
               className="inline-flex items-center justify-center rounded-xl bg-lira-blue px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110"
             >
@@ -269,7 +308,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Tabla */}
+      {/* TABLA */}
       <div className="rounded-2xl border bg-white shadow-sm">
         <div className="flex items-center justify-between border-b p-4">
           <span className="text-sm font-medium text-slate-700">Listado</span>
@@ -311,9 +350,7 @@ export default function DashboardPage() {
                       setIsModalOpen(true);
                     }}
                   >
-                    <td className="px-4 py-3 font-medium text-slate-900">
-                      {t.id}
-                    </td>
+                    <td className="px-4 py-3 font-medium text-slate-900">{t.id}</td>
 
                     <td className="px-4 py-3">
                       <div
@@ -352,7 +389,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Paginación */}
+        {/* PAGINACIÓN */}
         <div className="flex items-center justify-between border-t p-4">
           <button
             disabled={!canPrev}
