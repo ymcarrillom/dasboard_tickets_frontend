@@ -5,6 +5,8 @@ function SidebarLink({ to, label, icon, collapsed }) {
   return (
     <NavLink
       to={to}
+      end
+      title={collapsed ? label : undefined}
       className={({ isActive }) =>
         [
           "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition",
@@ -13,8 +15,6 @@ function SidebarLink({ to, label, icon, collapsed }) {
             : "text-slate-700 hover:bg-slate-100",
         ].join(" ")
       }
-      end
-      title={collapsed ? label : undefined}
     >
       <span className="text-base">{icon}</span>
       {!collapsed && <span className="truncate">{label}</span>}
@@ -22,19 +22,19 @@ function SidebarLink({ to, label, icon, collapsed }) {
   );
 }
 
-export default function AppShell({ children, wide = false }) {
+export default function AppShell({ children }) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* ✅ Un solo contenedor estable en todas las rutas */}
       <div
         className={[
-          wide ? "mx-auto w-full" : "mx-auto max-w-7xl",
-          "grid gap-6 p-4",
+          "mx-auto w-full max-w-[1400px] p-4",
+          "grid gap-6",
           collapsed ? "lg:grid-cols-[72px_1fr]" : "lg:grid-cols-[260px_1fr]",
         ].join(" ")}
       >
-        {/* Sidebar */}
         <aside className="rounded-2xl border border-slate-200/70 bg-white p-3 shadow-sm">
           <div className="mb-3 flex items-center justify-between gap-2">
             {!collapsed && (
@@ -63,12 +63,11 @@ export default function AppShell({ children, wide = false }) {
           {!collapsed && (
             <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
               <div className="font-semibold text-slate-800">Tip</div>
-              Colapsa el menú para ver la tabla completa.
+              Colapsa el menú para ver más ancho.
             </div>
           )}
         </aside>
 
-        {/* Main */}
         <main className="min-w-0 w-full">{children}</main>
       </div>
     </div>
