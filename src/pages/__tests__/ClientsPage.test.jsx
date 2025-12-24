@@ -38,6 +38,7 @@ describe('ClientsPage', () => {
     );
 
     // Initial data
+    await waitFor(() => expect(fetchClients).toHaveBeenCalled());
     expect(await screen.findByText('Inicial')).toBeInTheDocument();
 
     // Type into search and advance debounce timer
