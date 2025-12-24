@@ -6,6 +6,7 @@ import { vi } from 'vitest';
 
 import ClientsPage from '../ClientsPage';
 import { fetchClients } from '../../services/clients.service';
+import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('../../services/clients.service', () => ({
   fetchClients: vi.fn(),
@@ -30,7 +31,9 @@ describe('ClientsPage', () => {
 
     render(
       <QueryClientProvider client={client}>
-        <ClientsPage />
+        <MemoryRouter>
+          <ClientsPage />
+        </MemoryRouter>
       </QueryClientProvider>
     );
 
