@@ -1,10 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import AppShell from "../components/layout/AppShell";
 import { useClients } from "../hooks/useClients";
 
 export default function ClientsPage() {
   const [q, setQ] = useState("");
-  const clientsQuery = useClients(q ? { q } : undefined);
+  const [debouncedQ, setDebouncedQ] = useState(q);
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQ(q), 300);
+    return () => clearTimeout(id);
+  }, [q]);
+
+  const clientsQuery = useClients(debouncedQ ? { q: debouncedQ } : undefined);
 
   const items = clientsQuery.data?.items ?? [];
 
@@ -16,10 +23,13 @@ export default function ClientsPage() {
       </div>
 
       <div className="mb-4 rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
-        <label className="text-xs font-medium text-slate-600">Buscar</label>
+        <label htmlFor="q" className="text-xs font-medium text-slate-600">Buscar</label>
         <input
+          id="q"
+          type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          aria-label="Buscar clientes"
           placeholder="Buscar cliente…"
           className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#1177B6] focus:ring-4 focus:ring-[#1177B6]/10"
         />
