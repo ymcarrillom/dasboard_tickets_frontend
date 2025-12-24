@@ -15,16 +15,36 @@ function Badge({ children, variant = "neutral" }) {
       : "bg-slate-100 text-slate-700 border border-slate-200/70";
 
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${styles}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${styles}`}>
+      <span className="inline-block h-1.5 w-1.5 rounded-full bg-current opacity-70" />
       {children}
     </span>
+  );
+}
+
+function Button({ children, onClick, disabled, variant = "primary" }) {
+  const base =
+    "inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold shadow-sm transition";
+  const styles =
+    variant === "ghost"
+      ? "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+      : "bg-[#1177B6] text-white hover:brightness-110";
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`${base} ${styles} disabled:opacity-50 disabled:cursor-not-allowed`}
+    >
+      {children}
+    </button>
   );
 }
 
 export default function TasksPage() {
   // filtros
   const [q, setQ] = useState("");
-  const [finished, setFinished] = useState("");
+  const [finished, setFinished] = useState(""); // "" | "true" | "false"
   const [clientId, setClientId] = useState("");
   const [collaboratorId, setCollaboratorId] = useState("");
 
@@ -55,31 +75,49 @@ export default function TasksPage() {
     return `Mostrando ${from}-${to} de ${total}`;
   }, [offset, limit, pagination.total]);
 
+  const clearFilters = () => {
+    setQ("");
+    setFinished("");
+    setClientId("");
+    setCollaboratorId("");
+    setLimit(20);
+    setOffset(0);
+  };
+
   return (
-    <AppShell>
-      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <AppShell wide>
+      {/* Header */}
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-slate-900">Tareas</h2>
           <p className="text-sm text-slate-500">Operación diaria • filtros y listado</p>
         </div>
 
-        <button
-          onClick={() => tasksQuery.refetch()}
-          className="w-full rounded-xl bg-[#1177B6] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 sm:w-auto"
-        >
-          Refrescar
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button variant="ghost" onClick={clearFilters}>
+            Limpiar
+          </Button>
+          <Button onClick={() => tasksQuery.refetch()}>
+            {tasksQuery.isFetching ? "Actualizando…" : "Refrescar"}
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}
       <div className="mb-4 overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm">
         <div className="border-b border-slate-200/70 bg-slate-50 p-4">
-          <div className="text-sm font-semibold text-slate-900">Filtros</div>
-          <div className="text-xs text-slate-500">Filtra el listado de tickets</div>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-slate-900">Filtros</div>
+              <div className="text-xs text-slate-500">Filtra el listado de tickets</div>
+            </div>
+            <div className="text-xs text-slate-500">{showingText}</div>
+          </div>
         </div>
 
         <div className="p-4">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
+            {/* Buscar */}
             <div className="md:col-span-2">
               <label className="text-xs font-medium text-slate-600">Buscar</label>
               <input
@@ -89,10 +127,11 @@ export default function TasksPage() {
                   setQ(e.target.value);
                 }}
                 placeholder="Buscar en descripción…"
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#1177B6] focus:ring-4 focus:ring-[#1177B6]/10"
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none placeholder:text-slate-400 focus:border-[#1177B6] focus:ring-4 focus:ring-[#1177B6]/10"
               />
             </div>
 
+            {/* Estado */}
             <div>
               <label className="text-xs font-medium text-slate-600">Estado</label>
               <select
@@ -109,6 +148,7 @@ export default function TasksPage() {
               </select>
             </div>
 
+            {/* Cliente */}
             <div>
               <label className="text-xs font-medium text-slate-600">Cliente</label>
               <select
@@ -118,7 +158,7 @@ export default function TasksPage() {
                   setOffset(0);
                   setClientId(e.target.value);
                 }}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#1177B6] focus:ring-4 focus:ring-[#1177B6]/10 disabled:opacity-60"
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#1177B6] focus:ring-4 focus:ring-[#1177B6]/10 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <option value="">Todos</option>
                 {(clientsQuery.data?.items ?? []).map((c) => (
@@ -129,6 +169,7 @@ export default function TasksPage() {
               </select>
             </div>
 
+            {/* Colaborador */}
             <div>
               <label className="text-xs font-medium text-slate-600">Colaborador</label>
               <select
@@ -138,7 +179,7 @@ export default function TasksPage() {
                   setOffset(0);
                   setCollaboratorId(e.target.value);
                 }}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#1177B6] focus:ring-4 focus:ring-[#1177B6]/10 disabled:opacity-60"
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#1177B6] focus:ring-4 focus:ring-[#1177B6]/10 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <option value="">Todos</option>
                 {(collaboratorsQuery.data?.items ?? []).map((c) => (
@@ -149,6 +190,7 @@ export default function TasksPage() {
               </select>
             </div>
 
+            {/* Tamaño */}
             <div>
               <label className="text-xs font-medium text-slate-600">Tamaño</label>
               <select
@@ -167,31 +209,24 @@ export default function TasksPage() {
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => {
-                setQ("");
-                setFinished("");
-                setClientId("");
-                setCollaboratorId("");
-                setLimit(20);
-                setOffset(0);
-              }}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-            >
-              Limpiar filtros
-            </button>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="text-xs text-slate-500">{tasksQuery.isFetching ? "Actualizando…" : "Listo"}</div>
 
-            <div className="text-xs text-slate-500">
-              {tasksQuery.isFetching ? "Actualizando…" : showingText}
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" disabled={!canPrev} onClick={() => setOffset((v) => Math.max(0, v - limit))}>
+                ← Anterior
+              </Button>
+              <Button variant="ghost" disabled={!canNext} onClick={() => setOffset((v) => v + limit)}>
+                Siguiente →
+              </Button>
             </div>
           </div>
         </div>
       </div>
 
       {/* Tabla */}
-      <div className="rounded-2xl border border-slate-200/70 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-200/70 p-4">
+      <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-slate-200/70 bg-slate-50 p-4">
           <span className="text-sm font-semibold text-slate-900">Lista de tickets</span>
           <span className="text-xs text-slate-500">
             offset {pagination.offset ?? offset} • limit {pagination.limit ?? limit} • total {pagination.total ?? 0}
@@ -207,11 +242,11 @@ export default function TasksPage() {
         ) : items.length === 0 ? (
           <div className="p-6 text-sm text-slate-500">No hay resultados.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">ID</th>
+          <div className="max-h-[70vh] overflow-auto">
+            <table className="w-full min-w-[1200px] text-left text-sm">
+              <thead className="sticky top-0 z-20 bg-white text-xs uppercase text-slate-500">
+                <tr className="border-b border-slate-200/70">
+                  <th className="sticky left-0 z-30 bg-white px-4 py-3">ID</th>
                   <th className="px-4 py-3">Descripción</th>
                   <th className="px-4 py-3">Cliente</th>
                   <th className="px-4 py-3">Colaborador</th>
@@ -221,30 +256,52 @@ export default function TasksPage() {
                 </tr>
               </thead>
 
-              <tbody>
+              <tbody className="divide-y divide-slate-200/60">
                 {items.map((t) => (
                   <tr
                     key={t.id}
-                    className="cursor-pointer border-t border-slate-200/60 hover:bg-slate-50"
+                    className="group cursor-pointer transition hover:bg-slate-50"
                     onClick={() => {
                       setSelectedTask(t);
                       setIsModalOpen(true);
                     }}
                   >
-                    <td className="px-4 py-3 font-medium text-slate-900">{t.id}</td>
+                    <td className="sticky left-0 z-10 bg-white px-4 py-3 font-semibold text-slate-900 group-hover:bg-slate-50">
+                      {t.id}
+                    </td>
+
                     <td className="px-4 py-3">
-                      <div className="max-w-[520px] truncate text-slate-700" title={t.description ?? ""}>
+                      <div
+                        className="max-w-[560px] truncate text-slate-700 group-hover:text-slate-900"
+                        title={t.description ?? ""}
+                      >
                         {t.description ?? "-"}
                       </div>
+                      <div className="mt-1 text-xs text-slate-400">
+                        {t.typeName ?? `Tipo ${t.typeId ?? "-"}`}
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-slate-700">{t.clientName ?? t.clientId ?? "-"}</td>
-                    <td className="px-4 py-3 text-slate-700">{t.collaboratorName ?? t.collaboratorId ?? "-"}</td>
+
+                    <td className="px-4 py-3 text-slate-700">
+                      <div className="max-w-[220px] truncate" title={t.clientName ?? ""}>
+                        {t.clientName ?? t.clientId ?? "-"}
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-3 text-slate-700">
+                      <div className="max-w-[200px] truncate" title={t.collaboratorName ?? ""}>
+                        {t.collaboratorName ?? t.collaboratorId ?? "-"}
+                      </div>
+                    </td>
+
                     <td className="px-4 py-3">
                       <Badge variant="neutral">{t.typeName ?? t.typeId ?? "-"}</Badge>
                     </td>
+
                     <td className="px-4 py-3 text-slate-700">
                       {t.date ? new Date(t.date).toLocaleString() : "-"}
                     </td>
+
                     <td className="px-4 py-3">
                       <Badge variant={t.finished ? "success" : "warning"}>
                         {t.finished ? "Finalizada" : "Pendiente"}
@@ -256,25 +313,9 @@ export default function TasksPage() {
             </table>
           </div>
         )}
-
-        <div className="flex items-center justify-between border-t border-slate-200/70 p-4">
-          <button
-            disabled={!canPrev}
-            onClick={() => setOffset((v) => Math.max(0, v - limit))}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm disabled:opacity-50"
-          >
-            Anterior
-          </button>
-          <button
-            disabled={!canNext}
-            onClick={() => setOffset((v) => v + limit)}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm disabled:opacity-50"
-          >
-            Siguiente
-          </button>
-        </div>
       </div>
 
+      {/* Modal */}
       <TaskDetailModal
         open={isModalOpen}
         task={selectedTask}

@@ -1,38 +1,32 @@
-import React, { useMemo } from "react";
+import React from "react";
 import {
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
   LineChart,
   Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  BarChart,
+  Bar,
   PieChart,
   Pie,
   Cell,
+  Legend,
 } from "recharts";
 
-const COLORS = ["#1177B6", "#D17745", "#8B8B90", "#22C55E", "#F59E0B", "#A855F7", "#06B6D4"];
+const COLORS = ["#1177B6", "#D17745", "#9CA3AF", "#22C55E", "#A855F7", "#0EA5E9", "#F59E0B"];
 
 function Card({ title, subtitle, children }) {
   return (
-    <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
-      <div className="mb-3">
+    <div className="rounded-2xl border border-slate-200/70 bg-white shadow-sm">
+      <div className="border-b border-slate-200/70 p-4">
         <div className="text-sm font-semibold text-slate-900">{title}</div>
-        <div className="text-xs text-slate-500">{subtitle}</div>
+        {subtitle && <div className="text-xs text-slate-500">{subtitle}</div>}
       </div>
-      {children}
+      <div className="p-4">{children}</div>
     </div>
   );
-}
-
-function formatDayLabel(day) {
-  if (!day) return "";
-  const s = String(day);
-  return s.length >= 10 ? s.slice(5, 10) : s; // "MM-DD"
 }
 
 export default function DashboardCharts({
@@ -40,95 +34,110 @@ export default function DashboardCharts({
   byTypeItems = [],
   byCollaboratorItems = [],
 }) {
-  const statusTotals = useMemo(() => {
-    const pending = timeseriesItems.reduce((acc, x) => acc + (x.pending || 0), 0);
-    const finished = timeseriesItems.reduce((acc, x) => acc + (x.finished || 0), 0);
-    return [
-      { name: "Pendientes", value: pending },
-      { name: "Finalizadas", value: finished },
-    ];
-  }, [timeseriesItems]);
+  // Serie temporal (línea)
+  const timeseriesData = timeseriesItems.map((d) => ({
+    day: new Date(d.day).toLocaleDateString(),
+    total: d.total,
+    pending: d.pending,
+    finished: d.finished,
+  }));
 
-  const donutData = useMemo(() => {
-    const sorted = [...byTypeItems].sort((a, b) => (b.total || 0) - (a.total || 0));
-    const top = sorted.slice(0, 6);
-    const rest = sorted.slice(6);
-    const restTotal = rest.reduce((acc, x) => acc + (x.total || 0), 0);
-    const merged = restTotal > 0 ? [...top, { typeName: "Otros", total: restTotal }] : top;
+  // Dona por tipo (Top 5 + Otros)
+  const sortedTypes = [...byTypeItems].sort((a, b) => (b.total ?? 0) - (a.total ?? 0));
+  const topTypes = sortedTypes.slice(0, 5);
+  const otherTypes = sortedTypes.slice(5);
 
-    return merged.map((x) => ({
-      name: x.typeName ?? "N/A",
-      value: Number(x.total ?? 0),
+  const donutData = topTypes.map((t) => ({ name: t.typeName ?? "N/A", value: Number(t.total ?? 0) }));
+  if (otherTypes.length > 0) {
+    donutData.push({
+      name: "Otros",
+      value: otherTypes.reduce((acc, t) => acc + Number(t.total ?? 0), 0),
+    });
+  }
+
+  // Barras por colaborador (Top 10)
+  const collaboratorData = [...byCollaboratorItems]
+    .sort((a, b) => (b.total ?? 0) - (a.total ?? 0))
+    .slice(0, 10)
+    .map((c) => ({
+      name: c.collaboratorName ?? "N/A",
+      total: Number(c.total ?? 0),
     }));
-  }, [byTypeItems]);
-
-  const topCollab = useMemo(() => {
-    return [...byCollaboratorItems]
-      .sort((a, b) => (b.total || 0) - (a.total || 0))
-      .slice(0, 10)
-      .map((x) => ({
-        name: x.collaboratorName ?? "N/A",
-        total: Number(x.total ?? 0),
-      }));
-  }, [byCollaboratorItems]);
 
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {/* Estado */}
       <Card title="Estado" subtitle="Pendientes vs Finalizadas">
-        <div className="h-44">
+        <div className="h-48">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={statusTotals}>
+            <BarChart
+              data={[
+                { name: "Pendientes", total: timeseriesItems.reduce((a, b) => a + (b.pending ?? 0), 0) },
+                { name: "Finalizadas", total: timeseriesItems.reduce((a, b) => a + (b.finished ?? 0), 0) },
+              ]}
+            >
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+              <XAxis dataKey="name" />
+              <YAxis allowDecimals={false} />
               <Tooltip />
-              <Legend />
-              <Bar dataKey="value" name="Total" fill="#1177B6" radius={[10, 10, 0, 0]} />
+              <Bar dataKey="total" fill="#1177B6" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </Card>
 
-      <Card title="Tendencia" subtitle="Total por día">
-        <div className="h-44">
+      {/* Tendencia */}
+      <Card title="Tendencia" subtitle="Total de tareas por día">
+        <div className="h-48">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={timeseriesItems}>
+            <LineChart data={timeseriesData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" tickFormatter={formatDayLabel} tick={{ fontSize: 12 }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+              <XAxis dataKey="day" />
+              <YAxis allowDecimals={false} />
               <Tooltip />
-              <Legend />
-              <Line
-                type="monotone"
-                dataKey="total"
-                name="Total"
-                stroke="#D17745"
-                strokeWidth={3}
-                dot={false}
-              />
+              <Line type="monotone" dataKey="total" stroke="#D17745" strokeWidth={2} dot={false} name="Total" />
             </LineChart>
           </ResponsiveContainer>
         </div>
       </Card>
 
+      {/* Distribución por tipo (DONA) */}
       <Card title="Distribución por tipo" subtitle="Top tipos + otros">
         <div className="h-44">
           {donutData.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-sm text-slate-500">
-              Sin datos
-            </div>
+            <div className="flex h-full items-center justify-center text-sm text-slate-500">Sin datos</div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Tooltip />
-                <Legend />
+
+                {/* ✅ Legend más pegado a la dona */}
+                <Legend
+                  layout="vertical"
+                  align="right"
+                  verticalAlign="middle"
+                  iconType="circle"
+                  formatter={(value) => (
+                    <span style={{ fontSize: 12, color: "#334155" }}>{value}</span>
+                  )}
+                  wrapperStyle={{
+                    maxHeight: 160,
+                    overflowY: "auto",
+                    paddingLeft: 6, // 👈 antes 12, ahora más pegado
+                    marginLeft: 0,
+                  }}
+                />
+
+                {/* ✅ Dona un poquito más hacia la derecha */}
                 <Pie
                   data={donutData}
                   dataKey="value"
                   nameKey="name"
-                  innerRadius={40}
+                  innerRadius={42}
                   outerRadius={70}
                   paddingAngle={2}
+                  cx="40%"   // 👈 antes 35%, ahora más cerca del legend
+                  cy="50%"
                 >
                   {donutData.map((_, idx) => (
                     <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
@@ -140,31 +149,26 @@ export default function DashboardCharts({
         </div>
       </Card>
 
-      <Card title="Carga por colaborador" subtitle="Top 10 por volumen">
-        <div className="h-44">
-          {topCollab.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-sm text-slate-500">
-              Sin datos
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={topCollab}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="name"
-                  interval={0}
-                  angle={-12}
-                  textAnchor="end"
-                  height={55}
-                  tick={{ fontSize: 11 }}
-                />
-                <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="total" name="Total" fill="#1177B6" radius={[10, 10, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
+      {/* Tickets por colaborador */}
+      <Card title="Tickets por colaborador" subtitle="Top 10">
+        <div className="h-48">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={collaboratorData} margin={{ bottom: 60 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              {/* ✅ Mostrar nombres abajo y rotarlos para que se lean */}
+              <XAxis
+                dataKey="name"
+                interval={0}
+                angle={-25}
+                textAnchor="end"
+                height={60}
+                tick={{ fontSize: 11 }}
+              />
+              <YAxis allowDecimals={false} />
+              <Tooltip />
+              <Bar dataKey="total" fill="#1177B6" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </Card>
     </div>
