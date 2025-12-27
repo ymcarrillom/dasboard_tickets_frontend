@@ -28,6 +28,6 @@ test('useClients calls fetchClients with params and returns data', async () => {
     </QueryClientProvider>
   );
 
-  await waitFor(() => expect(fetchClients).toHaveBeenCalledWith({ limit: 200, q: 'Alex' }));
+  await waitFor(() => expect(fetchClients).toHaveBeenCalledWith({ q: 'Alex' }));
   expect(await screen.findByText('Cliente A')).toBeInTheDocument();
 });
