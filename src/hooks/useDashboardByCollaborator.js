@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchDashboardByCollaborator } from "../services/dashboard";
+import { fetchByCollaborator } from "../services/dashboard.service";
 
 export function useDashboardByCollaborator(days = 30, limit = 10) {
   return useQuery({
-    queryKey: ["dashboardByCollaborator", days, limit],
-    queryFn: () => fetchDashboardByCollaborator(days, limit),
-    staleTime: 10_000,
+    queryKey: ["dashboard-by-collaborator", days, limit],
+    queryFn: () => fetchByCollaborator({ days, limit }),
+    refetchInterval: 30000,
+    refetchIntervalInBackground: true,
   });
 }

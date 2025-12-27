@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchDashboardSummary } from "../services/dashboard";
+import { fetchSummary } from "../services/dashboard.service";
 
 export function useDashboardSummary() {
   return useQuery({
-    queryKey: ["dashboardSummary"],
-    queryFn: fetchDashboardSummary,
+    queryKey: ["dashboard-summary"],
+    queryFn: fetchSummary,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: true,
     staleTime: 10_000,
   });
 }

@@ -38,6 +38,15 @@ describe('ClientsPage', () => {
     );
 
     // Initial data
+    // debug: log calls count
+    // eslint-disable-next-line no-console
+    console.log('fetchCalls after render:', fetchClients.mock.calls.length);
+
+    // wait microtasks and log DOM to inspect why it doesn't show the items
+    await Promise.resolve();
+    // eslint-disable-next-line no-console
+    console.log('DOM after microtasks:', document.body.innerHTML);
+
     await waitFor(() => expect(fetchClients).toHaveBeenCalled());
     expect(await screen.findByText('Inicial')).toBeInTheDocument();
 

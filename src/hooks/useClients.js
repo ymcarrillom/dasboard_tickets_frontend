@@ -1,12 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchClients } from "../services/clients.service";
 
-export function useClients(params) {
-  const q = params?.q ?? "";
+export function useClients(params = {}) {
   return useQuery({
-    queryKey: ["clients", q],
-    queryFn: () => fetchClients({ limit: 200, ...(params || {}) }),
-    staleTime: 5 * 60 * 1000,
-    keepPreviousData: true,
+    queryKey: ["clients", params],
+    queryFn: () => fetchClients(params),
+    staleTime: 60_000,
   });
 }

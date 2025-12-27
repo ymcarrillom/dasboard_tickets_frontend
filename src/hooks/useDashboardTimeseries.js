@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchDashboardTimeseries } from "../services/dashboard";
+import { fetchTimeseries } from "../services/dashboard.service";
 
 export function useDashboardTimeseries(days = 30) {
   return useQuery({
-    queryKey: ["dashboardTimeseries", days],
-    queryFn: () => fetchDashboardTimeseries(days),
-    staleTime: 10_000,
+    queryKey: ["dashboard-timeseries", days],
+    queryFn: () => fetchTimeseries({ days }),
+    refetchInterval: 30000,
+    refetchIntervalInBackground: true,
   });
 }

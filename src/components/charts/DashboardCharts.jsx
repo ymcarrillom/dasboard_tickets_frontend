@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -15,72 +15,74 @@ import {
   Legend,
 } from "recharts";
 
-const COLORS = ["#1177B6", "#D17745", "#9CA3AF", "#22C55E", "#A855F7", "#0EA5E9", "#F59E0B"];
+const COLORS = ["#1177B6", "#F08A24", "#6B7280", "#22C55E", "#A855F7", "#06B6D4", "#EF4444"];
 
-function Card({ title, subtitle, children }) {
+function Card({ title, subtitle, children, right }) {
   return (
-    <div className="rounded-2xl border border-slate-200/70 bg-white shadow-sm">
-      <div className="border-b border-slate-200/70 p-4">
-        <div className="text-sm font-semibold text-slate-900">{title}</div>
-        {subtitle && <div className="text-xs text-slate-500">{subtitle}</div>}
+    <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm">
+      <div className="flex items-start justify-between gap-4 border-b border-slate-200/70 bg-slate-50 p-4">
+        <div>
+          <div className="text-sm font-semibold text-slate-900">{title}</div>
+          {subtitle && <div className="text-xs text-slate-500">{subtitle}</div>}
+        </div>
+        {right}
       </div>
       <div className="p-4">{children}</div>
     </div>
   );
 }
 
-export default function DashboardCharts({
-  timeseriesItems = [],
-  byTypeItems = [],
-  byCollaboratorItems = [],
-}) {
-  // Serie temporal (línea)
-  const timeseriesData = timeseriesItems.map((d) => ({
-    day: new Date(d.day).toLocaleDateString(),
-    total: d.total,
-    pending: d.pending,
-    finished: d.finished,
-  }));
+export default function DashboardCharts({ summary, timeseries, byType, byCollaborator }) {
+  const statusBars = useMemo(() => {
+    const pending = Number(summary?.pending ?? 0);
+    const finished = Number(summary?.finished ?? 0);
+    return [
+      { name: "Pendientes", value: pending },
+      { name: "Finalizadas", value: finished },
+    ];
+  }, [summary]);
 
-  // Dona por tipo (Top 5 + Otros)
-  const sortedTypes = [...byTypeItems].sort((a, b) => (b.total ?? 0) - (a.total ?? 0));
-  const topTypes = sortedTypes.slice(0, 5);
-  const otherTypes = sortedTypes.slice(5);
-
-  const donutData = topTypes.map((t) => ({ name: t.typeName ?? "N/A", value: Number(t.total ?? 0) }));
-  if (otherTypes.length > 0) {
-    donutData.push({
-      name: "Otros",
-      value: otherTypes.reduce((acc, t) => acc + Number(t.total ?? 0), 0),
+  const trend = useMemo(() => {
+    const items = timeseries?.items ?? [];
+    // Normaliza day (puede venir como "2025-06-26T00:00:00.000Z")
+    return items.map((i) => {
+      const d = typeof i.day === "string" ? i.day.slice(0, 10) : String(i.day);
+      return { ...i, day: d };
     });
-  }
+  }, [timeseries]);
 
-  // Barras por colaborador (Top 10)
-  const collaboratorData = [...byCollaboratorItems]
-    .sort((a, b) => (b.total ?? 0) - (a.total ?? 0))
-    .slice(0, 10)
-    .map((c) => ({
-      name: c.collaboratorName ?? "N/A",
+  const typePie = useMemo(() => {
+    const items = byType?.items ?? [];
+    if (!items.length) return [];
+    // Top 6 y el resto "Otros"
+    const top = items.slice(0, 6);
+    const rest = items.slice(6);
+    const restTotal = rest.reduce((acc, it) => acc + Number(it.total ?? 0), 0);
+    const out = top.map((t) => ({ name: t.typeName, value: Number(t.total ?? 0) }));
+    if (restTotal > 0) out.push({ name: "Otros", value: restTotal });
+    return out;
+  }, [byType]);
+
+  const collaboratorBars = useMemo(() => {
+    const items = byCollaborator?.items ?? [];
+    return items.map((c) => ({
+      name: c.collaboratorName,
       total: Number(c.total ?? 0),
     }));
+  }, [byCollaborator]);
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       {/* Estado */}
       <Card title="Estado" subtitle="Pendientes vs Finalizadas">
-        <div className="h-48">
+        <div className="h-72 w-full min-w-0">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={[
-                { name: "Pendientes", total: timeseriesItems.reduce((a, b) => a + (b.pending ?? 0), 0) },
-                { name: "Finalizadas", total: timeseriesItems.reduce((a, b) => a + (b.finished ?? 0), 0) },
-              ]}
-            >
+            <BarChart data={statusBars} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis allowDecimals={false} />
+              <XAxis dataKey="name" tick={{ fill: "#334155", fontSize: 12 }} />
+              <YAxis tick={{ fill: "#334155", fontSize: 12 }} />
               <Tooltip />
-              <Bar dataKey="total" fill="#1177B6" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="value" name="Total" fill="#1177B6" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -88,85 +90,80 @@ export default function DashboardCharts({
 
       {/* Tendencia */}
       <Card title="Tendencia" subtitle="Total de tareas por día">
-        <div className="h-48">
+        <div className="h-72 w-full min-w-0">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={timeseriesData}>
+            <LineChart data={trend} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" />
-              <YAxis allowDecimals={false} />
+              <XAxis dataKey="day" tick={{ fill: "#334155", fontSize: 12 }} />
+              <YAxis tick={{ fill: "#334155", fontSize: 12 }} />
               <Tooltip />
-              <Line type="monotone" dataKey="total" stroke="#D17745" strokeWidth={2} dot={false} name="Total" />
+              <Line type="monotone" dataKey="total" name="Total" stroke="#F08A24" strokeWidth={3} dot={false} />
+              <Line type="monotone" dataKey="pending" name="Pendientes" stroke="#1177B6" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="finished" name="Finalizadas" stroke="#22C55E" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
       </Card>
 
-      {/* Distribución por tipo (DONA) */}
+      {/* Por tipo (dona) */}
       <Card title="Distribución por tipo" subtitle="Top tipos + otros">
-        <div className="h-44">
-          {donutData.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-sm text-slate-500">Sin datos</div>
-          ) : (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[240px_1fr] items-center">
+          <div className="h-56 w-full min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Tooltip />
-
-                {/* ✅ Legend más pegado a la dona */}
-                <Legend
-                  layout="vertical"
-                  align="right"
-                  verticalAlign="middle"
-                  iconType="circle"
-                  formatter={(value) => (
-                    <span style={{ fontSize: 12, color: "#334155" }}>{value}</span>
-                  )}
-                  wrapperStyle={{
-                    maxHeight: 160,
-                    overflowY: "auto",
-                    paddingLeft: 6, // 👈 antes 12, ahora más pegado
-                    marginLeft: 0,
-                  }}
-                />
-
-                {/* ✅ Dona un poquito más hacia la derecha */}
                 <Pie
-                  data={donutData}
+                  data={typePie}
                   dataKey="value"
                   nameKey="name"
-                  innerRadius={42}
-                  outerRadius={70}
+                  innerRadius={55}
+                  outerRadius={85}
                   paddingAngle={2}
-                  cx="40%"   // 👈 antes 35%, ahora más cerca del legend
-                  cy="50%"
                 >
-                  {donutData.map((_, idx) => (
+                  {typePie.map((_, idx) => (
                     <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
                   ))}
                 </Pie>
+                <Tooltip />
               </PieChart>
             </ResponsiveContainer>
-          )}
+          </div>
+
+          {/* Leyenda vertical al lado, compacta */}
+          <div className="min-w-0">
+            <div className="grid grid-cols-1 gap-2 text-xs text-slate-700">
+              {typePie.map((it, idx) => (
+                <div key={it.name} className="flex items-center gap-2">
+                  <span
+                    className="h-3 w-3 rounded-full"
+                    style={{ backgroundColor: COLORS[idx % COLORS.length] }}
+                  />
+                  <span className="truncate">{it.name}</span>
+                  <span className="ml-auto tabular-nums text-slate-500">{it.value}</span>
+                </div>
+              ))}
+              {!typePie.length && <div className="text-slate-500">Sin datos</div>}
+            </div>
+          </div>
         </div>
       </Card>
 
-      {/* Tickets por colaborador */}
+      {/* Por colaborador */}
       <Card title="Tickets por colaborador" subtitle="Top 10">
-        <div className="h-48">
+        <div className="h-72 w-full min-w-0">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={collaboratorData} margin={{ bottom: 60 }}>
+            <BarChart data={collaboratorBars} margin={{ top: 10, right: 10, left: 0, bottom: 60 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              {/* ✅ Mostrar nombres abajo y rotarlos para que se lean */}
               <XAxis
                 dataKey="name"
                 interval={0}
                 angle={-25}
                 textAnchor="end"
-                height={60}
-                tick={{ fontSize: 11 }}
+                height={70}
+                tick={{ fill: "#334155", fontSize: 11 }}
               />
-              <YAxis allowDecimals={false} />
+              <YAxis tick={{ fill: "#334155", fontSize: 12 }} />
               <Tooltip />
-              <Bar dataKey="total" fill="#1177B6" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="total" name="Total" fill="#1177B6" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

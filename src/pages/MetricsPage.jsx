@@ -116,11 +116,12 @@ export default function MetricsPage() {
             Error cargando gráficas (revisa /api/dashboard/*)
           </div>
         ) : (
-          <DashboardCharts
-            timeseriesItems={series}
-            byTypeItems={byType}
-            byCollaboratorItems={byCollab}
-          />
+        <DashboardCharts
+           summary={summary}
+           timeseries={timeseriesQuery.data}
+           byType={byTypeQuery.data}
+            byCollaborator={byCollaboratorQuery.data}
+        />
         )}
       </div>
     </AppShell>
