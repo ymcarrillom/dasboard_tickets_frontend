@@ -9,6 +9,9 @@ export default {
           orange: "#D17745",   // aprox del logo
           gray: "#8B8B90",     // aprox del logo
           ink: "#111827",      // negro elegante (slate-900)
+           fontFamily: {
+        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+      },
         },
       },
     },

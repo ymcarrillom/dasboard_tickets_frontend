@@ -1,118 +1,135 @@
 import React, { useMemo, useState } from "react";
 import AppShell from "../components/layout/AppShell";
-import TaskDetailModal from "../components/tasks/TaskDetailModal";
 
 import { useTasks } from "../hooks/useTasks";
 import { useClients } from "../hooks/useClients";
 import { useCollaborators } from "../hooks/useCollaborators";
 
-function Badge({ children, variant = "neutral" }) {
-  const styles =
-    variant === "success"
-      ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
-      : variant === "warning"
-      ? "bg-[#D17745]/15 text-[#D17745] border border-[#D17745]/30"
-      : "bg-slate-100 text-slate-700 border border-slate-200/70";
+/** Modal simple (sin librerías) */
+function TaskModal({ open, task, onClose }) {
+  if (!open || !task) return null;
 
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${styles}`}>
-      <span className="inline-block h-1.5 w-1.5 rounded-full bg-current opacity-70" />
-      {children}
-    </span>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" />
+
+      <div className="relative w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200/70 bg-slate-50 p-4">
+          <div>
+            <div className="text-sm font-semibold text-slate-900">
+              Detalle de tarea #{task.id}
+            </div>
+            <div className="mt-0.5 text-xs text-slate-500">
+              Cliente: {task.clientName ?? "N/A"} · Colaborador:{" "}
+              {task.collaboratorName ?? "N/A"}
+            </div>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+          >
+            Cerrar
+          </button>
+        </div>
+
+        <div className="p-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Info label="Descripción" value={task.description ?? ""} wide />
+            <Info label="Estado" value={task.finished ? "Finalizada" : "Pendiente"} />
+            <Info label="Fecha" value={formatDate(task.date)} />
+            <Info label="Tipo" value={task.typeName ?? String(task.typeId ?? "")} />
+            <Info label="Check-in" value={formatDate(task.checkIn) || "—"} />
+            <Info label="Check-out" value={formatDate(task.checkOut) || "—"} />
+            <Info label="Cliente ID" value={String(task.clientId ?? "—")} />
+            <Info label="Colaborador ID" value={String(task.collaboratorId ?? "—")} />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
-function Button({ children, onClick, disabled, variant = "primary" }) {
-  const base =
-    "inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold shadow-sm transition";
-  const styles =
-    variant === "ghost"
-      ? "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-      : "bg-[#1177B6] text-white hover:brightness-110";
-
+function Info({ label, value, wide = false }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`${base} ${styles} disabled:opacity-50 disabled:cursor-not-allowed`}
-    >
-      {children}
-    </button>
+    <div className={wide ? "sm:col-span-2" : ""}>
+      <div className="text-xs font-semibold text-slate-500">{label}</div>
+      <div className="mt-1 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-800">
+        {value}
+      </div>
+    </div>
   );
+}
+
+function formatDate(v) {
+  if (!v) return "";
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return String(v);
+  return d.toLocaleString();
 }
 
 export default function TasksPage() {
-  // filtros
+  // --------------------
+  // Estados de filtros
+  // --------------------
   const [q, setQ] = useState("");
-  const [finished, setFinished] = useState(""); // "" | "true" | "false"
+  const [finished, setFinished] = useState("");
   const [clientId, setClientId] = useState("");
   const [collaboratorId, setCollaboratorId] = useState("");
 
-  // paginación
   const [limit, setLimit] = useState(20);
   const [offset, setOffset] = useState(0);
 
-  // modal
+  // --------------------
+  // Modal
+  // --------------------
   const [selectedTask, setSelectedTask] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // queries
-  const tasksQuery = useTasks({ q, finished, clientId, collaboratorId, limit, offset });
-  const clientsQuery = useClients();
-  const collaboratorsQuery = useCollaborators();
+  // --------------------
+  // Queries
+  // --------------------
+  const tasksQuery = useTasks({
+    q,
+    finished,
+    clientId,
+    collaboratorId,
+    limit,
+    offset,
+  });
 
-  const items = tasksQuery.data?.items ?? [];
-  const pagination = tasksQuery.data?.pagination ?? { total: 0, limit, offset };
+  const clientsQuery = useClients({ limit: 200 });
+  const collaboratorsQuery = useCollaborators({ q: "", limit: 200 });
 
-  const canPrev = offset > 0;
-  const canNext = offset + limit < (pagination.total ?? 0);
+  const tasks = tasksQuery.data?.items ?? [];
+  const total = tasksQuery.data?.total ?? 0;
 
-  const showingText = useMemo(() => {
-    const total = pagination.total ?? 0;
-    if (total === 0) return "Mostrando 0";
-    const from = Math.min(offset + 1, total);
+  const rangeText = useMemo(() => {
+    if (!total) return "0";
+    const from = offset + 1;
     const to = Math.min(offset + limit, total);
-    return `Mostrando ${from}-${to} de ${total}`;
-  }, [offset, limit, pagination.total]);
-
-  const clearFilters = () => {
-    setQ("");
-    setFinished("");
-    setClientId("");
-    setCollaboratorId("");
-    setLimit(20);
-    setOffset(0);
-  };
+    return `${from}–${to}`;
+  }, [total, offset, limit]);
 
   return (
-    <AppShell wide>
+    <AppShell>
       {/* Header */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-slate-900">Tareas</h2>
-          <p className="text-sm text-slate-500">Operación diaria • filtros y listado</p>
-        </div>
-
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Button variant="ghost" onClick={clearFilters}>
-            Limpiar
-          </Button>
-          <Button onClick={() => tasksQuery.refetch()}>
-            {tasksQuery.isFetching ? "Actualizando…" : "Refrescar"}
-          </Button>
-        </div>
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold text-slate-900">Tareas</h2>
+        <p className="text-sm text-slate-500">Gestión y seguimiento de tickets</p>
       </div>
 
-      {/* Filtros */}
+      {/* ================= Filtros ================= */}
       <div className="mb-4 overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm">
         <div className="border-b border-slate-200/70 bg-slate-50 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-sm font-semibold text-slate-900">Filtros</div>
-              <div className="text-xs text-slate-500">Filtra el listado de tickets</div>
-            </div>
-            <div className="text-xs text-slate-500">{showingText}</div>
-          </div>
+          <div className="text-sm font-semibold text-slate-900">Filtros</div>
+          <div className="text-xs text-slate-500">Filtra el listado de tickets</div>
         </div>
 
         <div className="p-4">
@@ -127,7 +144,7 @@ export default function TasksPage() {
                   setQ(e.target.value);
                 }}
                 placeholder="Buscar en descripción…"
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none placeholder:text-slate-400 focus:border-[#1177B6] focus:ring-4 focus:ring-[#1177B6]/10"
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#1177B6] focus:ring-4 focus:ring-[#1177B6]/10"
               />
             </div>
 
@@ -158,18 +175,18 @@ export default function TasksPage() {
                   setOffset(0);
                   setClientId(e.target.value);
                 }}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#1177B6] focus:ring-4 focus:ring-[#1177B6]/10 disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#1177B6] focus:ring-4 focus:ring-[#1177B6]/10 disabled:opacity-60"
               >
                 <option value="">Todos</option>
                 {(clientsQuery.data?.items ?? []).map((c) => (
-                  <option key={c.id} value={c.id}>
+                  <option key={c.id} value={String(c.id)}>
                     {c.name}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Colaborador */}
+            {/* ✅ Colaborador (solo dropdown) */}
             <div>
               <label className="text-xs font-medium text-slate-600">Colaborador</label>
               <select
@@ -179,11 +196,11 @@ export default function TasksPage() {
                   setOffset(0);
                   setCollaboratorId(e.target.value);
                 }}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#1177B6] focus:ring-4 focus:ring-[#1177B6]/10 disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#1177B6] focus:ring-4 focus:ring-[#1177B6]/10 disabled:opacity-60"
               >
                 <option value="">Todos</option>
                 {(collaboratorsQuery.data?.items ?? []).map((c) => (
-                  <option key={c.id} value={c.id}>
+                  <option key={c.id} value={String(c.id)}>
                     {c.name}
                   </option>
                 ))}
@@ -209,120 +226,110 @@ export default function TasksPage() {
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-            <div className="text-xs text-slate-500">{tasksQuery.isFetching ? "Actualizando…" : "Listo"}</div>
+          <div className="mt-4 flex items-center justify-between">
+            <button
+              onClick={() => {
+                setQ("");
+                setFinished("");
+                setClientId("");
+                setCollaboratorId("");
+                setLimit(20);
+                setOffset(0);
+              }}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+            >
+              Limpiar filtros
+            </button>
 
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" disabled={!canPrev} onClick={() => setOffset((v) => Math.max(0, v - limit))}>
-                ← Anterior
-              </Button>
-              <Button variant="ghost" disabled={!canNext} onClick={() => setOffset((v) => v + limit)}>
-                Siguiente →
-              </Button>
+            <div className="text-xs text-slate-500">
+              {tasksQuery.isFetching ? "Actualizando…" : null}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Tabla */}
+      {/* ================= Tabla ================= */}
       <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-200/70 bg-slate-50 p-4">
-          <span className="text-sm font-semibold text-slate-900">Lista de tickets</span>
-          <span className="text-xs text-slate-500">
-            offset {pagination.offset ?? offset} • limit {pagination.limit ?? limit} • total {pagination.total ?? 0}
-          </span>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+              <tr>
+                <th className="px-4 py-3 text-left">ID</th>
+                <th className="px-4 py-3 text-left">Descripción</th>
+                <th className="px-4 py-3 text-left">Cliente</th>
+                <th className="px-4 py-3 text-left">Colaborador</th>
+                <th className="px-4 py-3 text-left">Estado</th>
+                <th className="px-4 py-3 text-left">Fecha</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-100">
+              {tasks.map((t) => (
+                <tr
+                  key={t.id}
+                  className="cursor-pointer hover:bg-slate-50"
+                  onClick={() => setSelectedTask(t)}
+                >
+                  <td className="px-4 py-3 font-medium text-slate-900">{t.id}</td>
+                  <td className="px-4 py-3">{t.description}</td>
+                  <td className="px-4 py-3">{t.clientName}</td>
+                  <td className="px-4 py-3">{t.collaboratorName}</td>
+                  <td className="px-4 py-3">
+                    {t.finished ? (
+                      <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">
+                        Finalizada
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-700">
+                        Pendiente
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">{formatDate(t.date)}</td>
+                </tr>
+              ))}
+
+              {!tasks.length && !tasksQuery.isLoading && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                    No hay resultados
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
 
-        {tasksQuery.isLoading ? (
-          <div className="p-6 text-sm text-slate-500">Cargando…</div>
-        ) : tasksQuery.isError ? (
-          <div className="p-6 text-sm text-red-600">
-            Error: {String(tasksQuery.error?.message ?? tasksQuery.error)}
+        <div className="flex items-center justify-between border-t border-slate-200/70 p-4 text-sm">
+          <div className="text-slate-500">
+            Mostrando {rangeText} de {total}
           </div>
-        ) : items.length === 0 ? (
-          <div className="p-6 text-sm text-slate-500">No hay resultados.</div>
-        ) : (
-          <div className="max-h-[70vh] overflow-auto">
-            <table className="w-full min-w-[1200px] text-left text-sm">
-              <thead className="sticky top-0 z-20 bg-white text-xs uppercase text-slate-500">
-                <tr className="border-b border-slate-200/70">
-                  <th className="sticky left-0 z-30 bg-white px-4 py-3">ID</th>
-                  <th className="px-4 py-3">Descripción</th>
-                  <th className="px-4 py-3">Cliente</th>
-                  <th className="px-4 py-3">Colaborador</th>
-                  <th className="px-4 py-3">Tipo</th>
-                  <th className="px-4 py-3">Fecha</th>
-                  <th className="px-4 py-3">Estado</th>
-                </tr>
-              </thead>
 
-              <tbody className="divide-y divide-slate-200/60">
-                {items.map((t) => (
-                  <tr
-                    key={t.id}
-                    className="group cursor-pointer transition hover:bg-slate-50"
-                    onClick={() => {
-                      setSelectedTask(t);
-                      setIsModalOpen(true);
-                    }}
-                  >
-                    <td className="sticky left-0 z-10 bg-white px-4 py-3 font-semibold text-slate-900 group-hover:bg-slate-50">
-                      {t.id}
-                    </td>
+          <div className="flex gap-2">
+            <button
+              disabled={offset === 0}
+              onClick={() => setOffset(Math.max(0, offset - limit))}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1 font-medium disabled:opacity-50"
+            >
+              Anterior
+            </button>
 
-                    <td className="px-4 py-3">
-                      <div
-                        className="max-w-[560px] truncate text-slate-700 group-hover:text-slate-900"
-                        title={t.description ?? ""}
-                      >
-                        {t.description ?? "-"}
-                      </div>
-                      <div className="mt-1 text-xs text-slate-400">
-                        {t.typeName ?? `Tipo ${t.typeId ?? "-"}`}
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-3 text-slate-700">
-                      <div className="max-w-[220px] truncate" title={t.clientName ?? ""}>
-                        {t.clientName ?? t.clientId ?? "-"}
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-3 text-slate-700">
-                      <div className="max-w-[200px] truncate" title={t.collaboratorName ?? ""}>
-                        {t.collaboratorName ?? t.collaboratorId ?? "-"}
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-3">
-                      <Badge variant="neutral">{t.typeName ?? t.typeId ?? "-"}</Badge>
-                    </td>
-
-                    <td className="px-4 py-3 text-slate-700">
-                      {t.date ? new Date(t.date).toLocaleString() : "-"}
-                    </td>
-
-                    <td className="px-4 py-3">
-                      <Badge variant={t.finished ? "success" : "warning"}>
-                        {t.finished ? "Finalizada" : "Pendiente"}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <button
+              disabled={offset + limit >= total}
+              onClick={() => setOffset(offset + limit)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1 font-medium disabled:opacity-50"
+            >
+              Siguiente
+            </button>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Modal */}
-      <TaskDetailModal
-        open={isModalOpen}
+      <TaskModal
+        open={Boolean(selectedTask)}
         task={selectedTask}
-        onClose={() => {
-          setIsModalOpen(false);
-          setSelectedTask(null);
-        }}
+        onClose={() => setSelectedTask(null)}
       />
     </AppShell>
   );
