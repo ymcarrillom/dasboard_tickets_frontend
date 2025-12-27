@@ -1,19 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { api } from "../services/api";
+import { fetchTasks } from "../services/tasks.service";
 
-export function useTasks(params) {
+export function useTasks(params = {}) {
   return useQuery({
     queryKey: ["tasks", params],
-    queryFn: async () => {
-      const { data } = await api.get("/tasks", { params });
-      return data;
-    },
-
-    // 🔁 AUTO REFRESH
-    refetchInterval: 15000,
-    refetchIntervalInBackground: true,
-
-    staleTime: 5000,
+    queryFn: () => fetchTasks(params),
+    staleTime: 15_000,
     keepPreviousData: true,
   });
 }
