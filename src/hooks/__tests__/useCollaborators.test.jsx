@@ -28,6 +28,6 @@ test('useCollaborators calls fetchCollaborators and returns data', async () => {
     </QueryClientProvider>
   );
 
-  await waitFor(() => expect(fetchCollaborators).toHaveBeenCalledWith({ limit: 200 }));
+  await waitFor(() => expect(fetchCollaborators).toHaveBeenCalledWith({ q: '', limit: 200 }));
   expect(await screen.findByText('Col A')).toBeInTheDocument();
 });
