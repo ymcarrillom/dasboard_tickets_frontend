@@ -3,10 +3,8 @@ import { fetchSummary } from "../services/dashboard.service";
 
 export function useDashboardSummary() {
   return useQuery({
-    queryKey: ["dashboard-summary"],
-    queryFn: fetchSummary,
-    refetchInterval: 30000,
-    refetchIntervalInBackground: true,
-    staleTime: 10_000,
+    queryKey: ["dashboard", "summary"],
+    queryFn: () => fetchSummary(),
+    staleTime: 15_000,
   });
 }

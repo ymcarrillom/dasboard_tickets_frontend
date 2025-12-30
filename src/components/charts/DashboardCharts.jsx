@@ -1,39 +1,73 @@
 import React, { useMemo } from "react";
 import {
   ResponsiveContainer,
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   Tooltip,
   CartesianGrid,
-  BarChart,
-  Bar,
+  LineChart,
+  Line,
   PieChart,
   Pie,
   Cell,
-  Legend,
 } from "recharts";
 
-const COLORS = ["#1177B6", "#F08A24", "#6B7280", "#22C55E", "#A855F7", "#06B6D4", "#EF4444"];
+const COLORS = [
+  "#1177B6", // azul Lira
+  "#D17745", // naranja Lira
+  "#10B981",
+  "#8B5CF6",
+  "#F59E0B",
+  "#06B6D4",
+  "#EF4444",
+  "#64748B",
+  "#0EA5E9",
+  "#A855F7",
+];
 
-function Card({ title, subtitle, children, right }) {
+function Card({ title, subtitle, children }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm">
-      <div className="flex items-start justify-between gap-4 border-b border-slate-200/70 bg-slate-50 p-4">
-        <div>
-          <div className="text-sm font-semibold text-slate-900">{title}</div>
-          {subtitle && <div className="text-xs text-slate-500">{subtitle}</div>}
-        </div>
-        {right}
+      <div className="border-b border-slate-200/70 bg-slate-50 p-4">
+        <div className="text-sm font-semibold text-slate-900">{title}</div>
+        <div className="text-xs text-slate-500">{subtitle}</div>
       </div>
       <div className="p-4">{children}</div>
     </div>
   );
 }
 
-export default function DashboardCharts({ summary, timeseries, byType, byCollaborator }) {
-  const statusBars = useMemo(() => {
+function NiceTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-sm">
+      <div className="font-semibold text-slate-900">{label}</div>
+      <div className="mt-1 space-y-1">
+        {payload.map((p) => (
+          <div key={p.dataKey} className="flex items-center gap-2">
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-full"
+              style={{ background: p.color }}
+            />
+            <span className="text-slate-600">{p.name ?? p.dataKey}:</span>
+            <span className="font-semibold text-slate-900">{p.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function DashboardCharts({
+  summary,
+  timeseriesItems = [],
+  byTypeItems = [],
+  byCollaboratorItems = [],
+}) {
+  // ✅ Estado (pendientes vs finalizadas) con valores reales
+  const statusData = useMemo(() => {
     const pending = Number(summary?.pending ?? 0);
     const finished = Number(summary?.finished ?? 0);
     return [
@@ -42,47 +76,53 @@ export default function DashboardCharts({ summary, timeseries, byType, byCollabo
     ];
   }, [summary]);
 
-  const trend = useMemo(() => {
-    const items = timeseries?.items ?? [];
-    // Normaliza day (puede venir como "2025-06-26T00:00:00.000Z")
-    return items.map((i) => {
-      const d = typeof i.day === "string" ? i.day.slice(0, 10) : String(i.day);
-      return { ...i, day: d };
-    });
-  }, [timeseries]);
-
-  const typePie = useMemo(() => {
-    const items = byType?.items ?? [];
-    if (!items.length) return [];
-    // Top 6 y el resto "Otros"
-    const top = items.slice(0, 6);
-    const rest = items.slice(6);
-    const restTotal = rest.reduce((acc, it) => acc + Number(it.total ?? 0), 0);
-    const out = top.map((t) => ({ name: t.typeName, value: Number(t.total ?? 0) }));
-    if (restTotal > 0) out.push({ name: "Otros", value: restTotal });
-    return out;
-  }, [byType]);
-
-  const collaboratorBars = useMemo(() => {
-    const items = byCollaborator?.items ?? [];
-    return items.map((c) => ({
-      name: c.collaboratorName,
-      total: Number(c.total ?? 0),
+  const trendData = useMemo(() => {
+    return (timeseriesItems ?? []).map((d) => ({
+      day: typeof d.day === "string" ? d.day.slice(0, 10) : d.day,
+      total: Number(d.total ?? 0),
     }));
-  }, [byCollaborator]);
+  }, [timeseriesItems]);
+
+  const typeTop = useMemo(() => {
+    const items = (byTypeItems ?? []).map((x) => ({
+      name: x.typeName ?? `Tipo ${x.typeId}`,
+      total: Number(x.total ?? 0),
+    }));
+    return items.slice(0, 10);
+  }, [byTypeItems]);
+
+  const collabTop = useMemo(() => {
+    return (byCollaboratorItems ?? []).map((x) => ({
+      name: x.collaboratorName ?? `Colaborador ${x.collaboratorId}`,
+      total: Number(x.total ?? 0),
+    }));
+  }, [byCollaboratorItems]);
+
+  // Para la dona + lista con números
+  const typeLegend = useMemo(() => {
+    return typeTop.map((t, idx) => ({
+      ...t,
+      color: COLORS[idx % COLORS.length],
+    }));
+  }, [typeTop]);
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       {/* Estado */}
       <Card title="Estado" subtitle="Pendientes vs Finalizadas">
-        <div className="h-72 w-full min-w-0">
+        <div className="h-[260px]">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={statusBars} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" tick={{ fill: "#334155", fontSize: 12 }} />
-              <YAxis tick={{ fill: "#334155", fontSize: 12 }} />
-              <Tooltip />
-              <Bar dataKey="value" name="Total" fill="#1177B6" radius={[8, 8, 0, 0]} />
+            <BarChart data={statusData} margin={{ top: 10, right: 16, left: 0, bottom: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+              <XAxis dataKey="name" tick={{ fill: "#64748B", fontSize: 12 }} />
+              <YAxis tick={{ fill: "#64748B", fontSize: 12 }} />
+              <Tooltip content={<NiceTooltip />} />
+              <Bar dataKey="value" name="Total" radius={[10, 10, 0, 0]}>
+                {/* ✅ 2 colores: naranja pendientes, azul finalizadas */}
+                {statusData.map((_, i) => (
+                  <Cell key={i} fill={i === 0 ? "#D17745" : "#1177B6"} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -90,80 +130,98 @@ export default function DashboardCharts({ summary, timeseries, byType, byCollabo
 
       {/* Tendencia */}
       <Card title="Tendencia" subtitle="Total de tareas por día">
-        <div className="h-72 w-full min-w-0">
+        <div className="h-[260px]">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={trend} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" tick={{ fill: "#334155", fontSize: 12 }} />
-              <YAxis tick={{ fill: "#334155", fontSize: 12 }} />
-              <Tooltip />
-              <Line type="monotone" dataKey="total" name="Total" stroke="#F08A24" strokeWidth={3} dot={false} />
-              <Line type="monotone" dataKey="pending" name="Pendientes" stroke="#1177B6" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="finished" name="Finalizadas" stroke="#22C55E" strokeWidth={2} dot={false} />
+            <LineChart data={trendData} margin={{ top: 10, right: 16, left: 0, bottom: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+              <XAxis dataKey="day" tick={{ fill: "#64748B", fontSize: 11 }} />
+              <YAxis tick={{ fill: "#64748B", fontSize: 12 }} />
+              <Tooltip content={<NiceTooltip />} />
+              <Line
+                type="monotone"
+                dataKey="total"
+                name="Total"
+                stroke="#D17745"
+                strokeWidth={2.5}
+                dot={false}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
       </Card>
 
-      {/* Por tipo (dona) */}
+      {/* Distribución por tipo (Dona + lista pegada) */}
       <Card title="Distribución por tipo" subtitle="Top tipos + otros">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-[240px_1fr] items-center">
-          <div className="h-56 w-full min-w-0">
+        <div className="flex flex-col items-center gap-3 md:flex-row md:items-start md:justify-between md:gap-4">
+          {/* Dona */}
+          <div className="h-[220px] w-[220px] shrink-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={typePie}
-                  dataKey="value"
+                  data={typeLegend}
+                  dataKey="total"
                   nameKey="name"
-                  innerRadius={55}
-                  outerRadius={85}
+                  innerRadius={60}
+                  outerRadius={90}
                   paddingAngle={2}
                 >
-                  {typePie.map((_, idx) => (
-                    <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
+                  {typeLegend.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip content={<NiceTooltip />} />
               </PieChart>
             </ResponsiveContainer>
           </div>
 
-          {/* Leyenda vertical al lado, compacta */}
-          <div className="min-w-0">
-            <div className="grid grid-cols-1 gap-2 text-xs text-slate-700">
-              {typePie.map((it, idx) => (
-                <div key={it.name} className="flex items-center gap-2">
-                  <span
-                    className="h-3 w-3 rounded-full"
-                    style={{ backgroundColor: COLORS[idx % COLORS.length] }}
-                  />
-                  <span className="truncate">{it.name}</span>
-                  <span className="ml-auto tabular-nums text-slate-500">{it.value}</span>
-                </div>
-              ))}
-              {!typePie.length && <div className="text-slate-500">Sin datos</div>}
-            </div>
+          {/* ✅ Lista más pegada (menos separación y más “pro”) */}
+          <div className="w-full md:pl-1">
+            {typeLegend.length === 0 ? (
+              <div className="text-center text-sm text-slate-500">Sin datos</div>
+            ) : (
+              <div className="space-y-2">
+                {typeLegend.map((it) => (
+                  <div
+                    key={it.name}
+                    className="flex items-center justify-between rounded-xl border border-slate-200/70 bg-white px-3 py-2"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                        style={{ background: it.color }}
+                      />
+                      <div className="truncate text-xs font-semibold uppercase tracking-wide text-slate-900">
+                        {it.name}
+                      </div>
+                    </div>
+                    <div className="ml-3 shrink-0 rounded-lg bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700">
+                      {it.total}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </Card>
 
-      {/* Por colaborador */}
+      {/* Tickets por colaborador */}
       <Card title="Tickets por colaborador" subtitle="Top 10">
-        <div className="h-72 w-full min-w-0">
+        <div className="h-[260px]">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={collaboratorBars} margin={{ top: 10, right: 10, left: 0, bottom: 60 }}>
-              <CartesianGrid strokeDasharray="3 3" />
+            <BarChart data={collabTop} margin={{ top: 10, right: 16, left: 0, bottom: 28 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
               <XAxis
                 dataKey="name"
                 interval={0}
-                angle={-25}
+                angle={-18}
                 textAnchor="end"
-                height={70}
-                tick={{ fill: "#334155", fontSize: 11 }}
+                height={50}
+                tick={{ fill: "#64748B", fontSize: 11 }}
               />
-              <YAxis tick={{ fill: "#334155", fontSize: 12 }} />
-              <Tooltip />
-              <Bar dataKey="total" name="Total" fill="#1177B6" radius={[8, 8, 0, 0]} />
+              <YAxis tick={{ fill: "#64748B", fontSize: 12 }} />
+              <Tooltip content={<NiceTooltip />} />
+              <Bar dataKey="total" name="Total" fill="#1177B6" radius={[10, 10, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

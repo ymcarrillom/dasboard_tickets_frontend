@@ -1,11 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchByType } from "../services/dashboard.service";
 
-export function useDashboardByType(days = 30) {
+export function useDashboardByType(days = 3650) {
   return useQuery({
-    queryKey: ["dashboard-by-type", days],
+    queryKey: ["dashboard", "by-type", { days }],
     queryFn: () => fetchByType({ days }),
-    refetchInterval: 30000,
-    refetchIntervalInBackground: true,
+    staleTime: 15_000,
   });
 }

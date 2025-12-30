@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React from "react";
 import AppShell from "../components/layout/AppShell";
 import DashboardCharts from "../components/charts/DashboardCharts";
 
@@ -6,7 +6,6 @@ import { useDashboardSummary } from "../hooks/useDashboardSummary";
 import { useDashboardTimeseries } from "../hooks/useDashboardTimeseries";
 import { useDashboardByType } from "../hooks/useDashboardByType";
 import { useDashboardByCollaborator } from "../hooks/useDashboardByCollaborator";
-import { useDashboardByClientPending } from "../hooks/useDashboardByClientPending";
 
 function KPI({ title, value, accent = "blue" }) {
   const bar =
@@ -27,36 +26,25 @@ function KPI({ title, value, accent = "blue" }) {
   );
 }
 
-const RANGE_OPTIONS = [
-  { label: "30 días", value: 30 },
-  { label: "90 días", value: 90 },
-  { label: "180 días", value: 180 },
-];
-
 export default function MetricsPage() {
-  // ✅ selector de rango (por defecto 90)
-  const [days, setDays] = useState(90);
-
-  // Summary no depende del rango (global), pero se refresca igual cada 30s
   const summaryQuery = useDashboardSummary();
-
-  // ✅ todo lo demás usa el rango seleccionado
-  const timeseriesQuery = useDashboardTimeseries(days);
-  const byTypeQuery = useDashboardByType(days);
-  const byCollaboratorQuery = useDashboardByCollaborator(days, 10);
-
-  // Top clientes pendientes — usa el mismo rango, top 5
-  const topClientsQuery = useDashboardByClientPending(days, 5);
+  const timeseriesQuery = useDashboardTimeseries(3650);
+  const byTypeQuery = useDashboardByType(3650);
+  const byCollaboratorQuery = useDashboardByCollaborator(3650, 10);
 
   const summary = summaryQuery.data ?? {
     total: 0,
     pending: 0,
     finished: 0,
-    createdToday: 0,
-    finishedToday: 0,
+    pendingNotStarted: 0,
     inProgress: 0,
-    notStarted: 0,
+    avgResponseMin: null,
+    avgHandleMin: null,
   };
+
+  const series = timeseriesQuery.data?.items ?? [];
+  const byType = byTypeQuery.data?.items ?? [];
+  const byCollab = byCollaboratorQuery.data?.items ?? [];
 
   const chartsLoading =
     timeseriesQuery.isLoading || byTypeQuery.isLoading || byCollaboratorQuery.isLoading;
@@ -64,64 +52,43 @@ export default function MetricsPage() {
   const chartsError =
     timeseriesQuery.isError || byTypeQuery.isError || byCollaboratorQuery.isError;
 
-  const completionRate = useMemo(() => {
-    return summary.total > 0 ? Math.round((summary.finished / summary.total) * 100) : 0;
-  }, [summary.total, summary.finished]);
+  const completionRate =
+    summary.total > 0 ? Math.round((summary.finished / summary.total) * 100) : 0;
 
-  const pendingRate = useMemo(() => {
-    return summary.total > 0 ? Math.round((summary.pending / summary.total) * 100) : 0;
-  }, [summary.total, summary.pending]);
+  const pendingRate =
+    summary.total > 0 ? Math.round((summary.pending / summary.total) * 100) : 0;
 
-  const topClients = topClientsQuery.data?.items ?? [];
-
-  const rangeLabel = useMemo(() => {
-    return RANGE_OPTIONS.find((o) => o.value === days)?.label ?? `${days} días`;
-  }, [days]);
+  const fmtHM = (minutes) => {
+    if (minutes === null || minutes === undefined) return "—";
+    const m = Math.round(Number(minutes));
+    const h = Math.floor(m / 60);
+    const mm = m % 60;
+    return h > 0 ? `${h}h ${mm}m` : `${mm}m`;
+  };
 
   return (
     <AppShell>
-      {/* Header */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-slate-900">LIRA · Operaciones Tecnológicas</h2>
-          <p className="text-sm text-slate-500">KPIs y gráficas agregadas de tickets</p>
+          <h2 className="text-xl font-semibold text-slate-900">Métricas</h2>
+          <p className="text-sm text-slate-500">KPIs y gráficas agregadas</p>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          {/* Selector rango */}
-          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-            <span className="text-xs font-semibold text-slate-600">Rango</span>
-            <select
-              value={days}
-              onChange={(e) => setDays(Number(e.target.value))}
-              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm outline-none focus:border-[#1177B6] focus:ring-4 focus:ring-[#1177B6]/10"
-            >
-              {RANGE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Refrescar */}
-          <button
-            onClick={() => {
-              summaryQuery.refetch();
-              timeseriesQuery.refetch();
-              byTypeQuery.refetch();
-              byCollaboratorQuery.refetch();
-              topClientsQuery.refetch();
-            }}
-            className="w-full rounded-xl bg-[#1177B6] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 sm:w-auto"
-          >
-            Refrescar
-          </button>
-        </div>
+        <button
+          onClick={() => {
+            summaryQuery.refetch();
+            timeseriesQuery.refetch();
+            byTypeQuery.refetch();
+            byCollaboratorQuery.refetch();
+          }}
+          className="w-full rounded-xl bg-[#1177B6] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 sm:w-auto"
+        >
+          Refrescar
+        </button>
       </div>
 
       {/* KPIs */}
-      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KPI title="Total" value={summaryQuery.isLoading ? "…" : summary.total} accent="blue" />
         <KPI
           title="Pendientes"
@@ -134,35 +101,32 @@ export default function MetricsPage() {
           accent="green"
         />
         <KPI
-          title="% Pendientes"
-          value={summaryQuery.isLoading ? "…" : `${pendingRate}%`}
-          accent="orange"
-        />
-        <KPI
           title="% Finalización"
           value={summaryQuery.isLoading ? "…" : `${completionRate}%`}
           accent="green"
         />
+      </div>
 
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KPI
-          title="Creados hoy"
-          value={summaryQuery.isLoading ? "…" : summary.createdToday}
+          title="Pendientes sin iniciar"
+          value={summaryQuery.isLoading ? "…" : summary.pendingNotStarted ?? "—"}
+          accent="orange"
+        />
+        <KPI
+          title="En atención"
+          value={summaryQuery.isLoading ? "…" : summary.inProgress ?? "—"}
           accent="blue"
         />
         <KPI
-          title="Finalizados hoy"
-          value={summaryQuery.isLoading ? "…" : summary.finishedToday}
+          title="Prom. tiempo respuesta"
+          value={summaryQuery.isLoading ? "…" : fmtHM(summary.avgResponseMin)}
+          accent="blue"
+        />
+        <KPI
+          title="Prom. tiempo atención"
+          value={summaryQuery.isLoading ? "…" : fmtHM(summary.avgHandleMin)}
           accent="green"
-        />
-        <KPI
-          title="En progreso"
-          value={summaryQuery.isLoading ? "…" : summary.inProgress}
-          accent="orange"
-        />
-        <KPI
-          title="Sin iniciar"
-          value={summaryQuery.isLoading ? "…" : summary.notStarted}
-          accent="orange"
         />
       </div>
 
@@ -178,41 +142,12 @@ export default function MetricsPage() {
           </div>
         ) : (
           <DashboardCharts
-            summary={summary}
-            timeseries={timeseriesQuery.data}
-            byType={byTypeQuery.data}
-            byCollaborator={byCollaboratorQuery.data}
+            summary={summary}              // ✅ para “Estado”
+            timeseriesItems={series}
+            byTypeItems={byType}
+            byCollaboratorItems={byCollab}
           />
         )}
-      </div>
-
-      {/* Top clientes pendientes */}
-      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm">
-        <div className="border-b border-slate-200/70 bg-slate-50 p-4">
-          <div className="text-sm font-semibold text-slate-900">Top clientes con pendientes</div>
-          <div className="text-xs text-slate-500">Rango: {rangeLabel}</div>
-        </div>
-
-        <div className="p-4">
-          {topClientsQuery.isLoading ? (
-            <div className="text-sm text-slate-500">Cargando…</div>
-          ) : topClients.length === 0 ? (
-            <div className="text-sm text-slate-500">Sin datos</div>
-          ) : (
-            <div className="space-y-2">
-              {topClients.map((c) => (
-                <div key={c.clientId} className="flex items-center gap-3">
-                  <div className="min-w-0 flex-1 truncate text-sm text-slate-800">
-                    {c.clientName}
-                  </div>
-                  <div className="rounded-full bg-[#1177B6]/10 px-2 py-1 text-xs font-semibold text-[#1177B6]">
-                    {c.pending}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
     </AppShell>
   );

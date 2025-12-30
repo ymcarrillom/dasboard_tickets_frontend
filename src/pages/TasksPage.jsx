@@ -6,32 +6,63 @@ import { useTasks } from "../hooks/useTasks";
 import { useClients } from "../hooks/useClients";
 import { useCollaborators } from "../hooks/useCollaborators";
 
-function Badge({ children, variant = "neutral" }) {
-  const styles =
-    variant === "success"
-      ? "bg-emerald-50 text-emerald-700 border-emerald-200/60"
-      : variant === "warning"
-      ? "bg-orange-50 text-orange-700 border-orange-200/60"
-      : "bg-slate-100 text-slate-700 border-slate-200/70";
-
+function StatusBadge({ finished }) {
+  const base =
+    "inline-flex items-center justify-center rounded-full border px-3 py-1 text-xs font-semibold";
+  if (finished) {
+    return (
+      <span className={`${base} border-emerald-200/60 bg-emerald-50 text-emerald-700`}>
+        Finalizada
+      </span>
+    );
+  }
   return (
-    <span
-      className={`inline-flex items-center justify-center rounded-full border px-3 py-1 text-xs font-semibold ${styles}`}
-    >
-      {children}
+    <span className={`${base} border-lira-orange/30 bg-lira-orange/15 text-lira-orange`}>
+      Pendiente
     </span>
   );
 }
 
-function formatDate(value) {
+function formatDateTime(value) {
   if (!value) return "—";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleString();
 }
 
+function minutesDiff(a, b) {
+  const da = new Date(a);
+  const db = new Date(b);
+  if (Number.isNaN(da.getTime()) || Number.isNaN(db.getTime())) return null;
+  return Math.round((db.getTime() - da.getTime()) / 60000);
+}
+
+function formatDurationFromMinutes(mins) {
+  if (mins == null) return "—";
+  if (mins < 0) return "—"; // por si vienen datos invertidos
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h <= 0) return `${m}m`;
+  return `${h}h ${m}m`;
+}
+
+/**
+ * ✅ Tiempo “real” de ejecución:
+ * - Si hay checkIn y checkOut => duración = checkOut - checkIn
+ * - Si falta alguno => "—" (igual que venías mostrando)
+ */
+function getTaskDurationLabel(task) {
+  const checkIn = task?.checkIn ?? task?.check_in ?? null;
+  const checkOut = task?.checkOut ?? task?.check_out ?? null;
+
+  if (!checkIn || !checkOut) return "—";
+
+  const mins = minutesDiff(checkIn, checkOut);
+  return formatDurationFromMinutes(mins);
+}
+
 export default function TasksPage() {
-  // filtros (igual a lo que venías usando)
+  // filtros
   const [q, setQ] = useState("");
   const [finished, setFinished] = useState(""); // "", "true", "false"
   const [clientId, setClientId] = useState("");
@@ -40,55 +71,60 @@ export default function TasksPage() {
   const [offset, setOffset] = useState(0);
 
   // modal
-  const [selectedTask, setSelectedTask] = useState(null);
   const [openModal, setOpenModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
 
-  // queries
-  const tasksQuery = useTasks({
-    q,
-    finished,
-    clientId,
-    collaboratorId,
-    limit,
-    offset,
-  });
+  const params = useMemo(
+    () => ({
+      q: q || "",
+      finished: finished || "",
+      clientId: clientId || "",
+      collaboratorId: collaboratorId || "",
+      limit,
+      offset,
+    }),
+    [q, finished, clientId, collaboratorId, limit, offset]
+  );
 
-  const clientsQuery = useClients({ q: "", limit: 200 });
-  const collaboratorsQuery = useCollaborators({ q: "", limit: 200 });
+  const tasksQuery = useTasks(params);
+  const clientsQuery = useClients({ limit: 200 });
+  const collaboratorsQuery = useCollaborators({ limit: 200 });
 
   const items = tasksQuery.data?.items ?? [];
   const paging = tasksQuery.data?.paging ?? { limit, offset };
-  const total = tasksQuery.data?.total ?? tasksQuery.data?.meta?.total ?? null; // por si tu backend no lo envía
-  const showingText = useMemo(() => {
-    if (typeof total === "number") {
-      const from = Math.min(offset + 1, total);
-      const to = Math.min(offset + limit, total);
-      return `Mostrando ${from}-${to} de ${total}`;
-    }
-    return `Mostrando ${items.length}`;
-  }, [total, offset, limit, items.length]);
+  const total = tasksQuery.data?.total ?? tasksQuery.data?.paging?.total ?? null; // por si tu API luego expone total
 
-  const canPrev = offset > 0;
-  const canNext =
-    typeof total === "number" ? offset + limit < total : items.length === limit;
+  const showingText = (() => {
+    const start = offset + 1;
+    const end = offset + (items?.length || 0);
+    if (!items?.length) return "Mostrando 0";
+    if (typeof total === "number") return `Mostrando ${start}-${end} de ${total}`;
+    return `Mostrando ${start}-${end}`;
+  })();
 
   function openTask(task) {
     setSelectedTask(task);
     setOpenModal(true);
   }
 
+  function closeTask() {
+    setOpenModal(false);
+    setSelectedTask(null);
+  }
+
+  const canPrev = offset > 0;
+  const canNext = items.length === limit; // heurística simple
+
   return (
     <AppShell>
-      {/* HEADER */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      {/* Header */}
+      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-slate-900">Tareas</h2>
-          <p className="text-sm text-slate-500">
-            Operación diaria • filtros y listado
-          </p>
+          <p className="text-sm text-slate-500">Operación diaria • filtros y listado</p>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex w-full gap-2 sm:w-auto">
           <button
             onClick={() => {
               setQ("");
@@ -98,28 +134,30 @@ export default function TasksPage() {
               setLimit(20);
               setOffset(0);
             }}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+            className="w-1/2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 sm:w-auto"
           >
             Limpiar
           </button>
 
           <button
             onClick={() => tasksQuery.refetch()}
-            className="rounded-xl bg-[#1177B6] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110"
+            className="w-1/2 rounded-xl bg-[#1177B6] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 sm:w-auto"
           >
             Refrescar
           </button>
         </div>
       </div>
 
-      {/* FILTROS */}
-      <div className="mb-5 overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm">
-        <div className="flex flex-col gap-2 border-b border-slate-200/70 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="text-sm font-semibold text-slate-900">Filtros</div>
-            <div className="text-xs text-slate-500">Filtra el listado de tickets</div>
+      {/* Filtros */}
+      <div className="mb-4 overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm">
+        <div className="border-b border-slate-200/70 bg-slate-50 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-slate-900">Filtros</div>
+              <div className="text-xs text-slate-500">Filtra el listado de tickets</div>
+            </div>
+            <div className="text-xs text-slate-500">{showingText}</div>
           </div>
-          <div className="text-xs font-medium text-slate-500">{showingText}</div>
         </div>
 
         <div className="p-4">
@@ -176,7 +214,7 @@ export default function TasksPage() {
               </select>
             </div>
 
-            {/* Colaborador (✅ SOLO DROPDOWN como pediste) */}
+            {/* Colaborador */}
             <div>
               <label className="text-xs font-medium text-slate-600">Colaborador</label>
               <select
@@ -216,25 +254,24 @@ export default function TasksPage() {
             </div>
           </div>
 
-          {/* Footer filtros */}
+          {/* paginación */}
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
             <div className="text-xs text-slate-500">
               {tasksQuery.isFetching ? "Actualizando…" : "Listo"}
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               <button
                 disabled={!canPrev}
-                onClick={() => setOffset((v) => Math.max(0, v - limit))}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => setOffset(Math.max(0, offset - limit))}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
               >
                 ← Anterior
               </button>
-
               <button
                 disabled={!canNext}
-                onClick={() => setOffset((v) => v + limit)}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => setOffset(offset + limit)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
               >
                 Siguiente →
               </button>
@@ -243,107 +280,78 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {/* TABLA */}
+      {/* Tabla */}
       <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-200/70 bg-slate-50 px-4 py-3">
-          <div>
+        <div className="border-b border-slate-200/70 bg-slate-50 px-4 py-3">
+          <div className="flex items-center justify-between">
             <div className="text-sm font-semibold text-slate-900">Lista de tickets</div>
             <div className="text-xs text-slate-500">
-              Haz click en una fila para ver el detalle
+              offset {paging.offset ?? offset} • limit {paging.limit ?? limit}
             </div>
-          </div>
-
-          <div className="text-xs text-slate-500">
-            offset <span className="font-semibold">{offset}</span> • limit{" "}
-            <span className="font-semibold">{limit}</span>
-            {typeof total === "number" ? (
-              <>
-                {" "}
-                • total <span className="font-semibold">{total}</span>
-              </>
-            ) : null}
           </div>
         </div>
 
-        <div className="w-full overflow-x-auto">
-          <table className="w-full min-w-[980px]">
-            <thead className="bg-slate-50">
-              <tr className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <th className="px-4 py-3 text-left">Ticket</th>
-                <th className="px-4 py-3 text-left">Tipo</th>
-                <th className="px-4 py-3 text-left">Cliente</th>
-                <th className="px-4 py-3 text-left">Colaborador</th>
-
-                {/* ✅ Texto cambiado */}
-                <th className="px-4 py-3 text-left">Fecha de respuesta</th>
-
-                {/* ✅ Texto cambiado + centrado */}
+        <div className="overflow-x-auto">
+          <table className="min-w-[980px] w-full text-left text-sm">
+            <thead className="bg-white">
+              <tr className="border-b border-slate-200/70 text-xs uppercase tracking-wide text-slate-500">
+                <th className="px-4 py-3">Ticket</th>
+                <th className="px-4 py-3">Tipo</th>
+                <th className="px-4 py-3">Cliente</th>
+                <th className="px-4 py-3">Colaborador</th>
+                <th className="px-4 py-3 text-center">Fecha de respuesta</th>
                 <th className="px-4 py-3 text-center">Estado</th>
-
                 <th className="px-4 py-3 text-center">Tiempo</th>
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-slate-100 bg-white">
+            <tbody>
               {tasksQuery.isLoading ? (
                 <tr>
-                  <td className="px-4 py-6 text-sm text-slate-500" colSpan={7}>
-                    Cargando tareas…
+                  <td className="px-4 py-6 text-slate-500" colSpan={7}>
+                    Cargando…
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-sm text-slate-500" colSpan={7}>
-                    No hay resultados con los filtros actuales.
+                  <td className="px-4 py-6 text-slate-500" colSpan={7}>
+                    No hay resultados con esos filtros.
                   </td>
                 </tr>
               ) : (
-                items.map((task) => (
+                items.map((t) => (
                   <tr
-                    key={task.id}
-                    onClick={() => openTask(task)}
-                    className="group cursor-pointer transition hover:bg-slate-50"
+                    key={t.id}
+                    onClick={() => openTask(t)}
+                    className="cursor-pointer border-b border-slate-100 hover:bg-slate-50/60"
                   >
-                    {/* Ticket */}
-                    <td className="px-4 py-4 text-sm font-semibold text-slate-900">
-                      {task.ticket ?? task.id}
-                    </td>
+                    <td className="px-4 py-4 font-semibold text-slate-900">{t.id}</td>
 
-                    {/* Tipo */}
                     <td className="px-4 py-4">
-                      <div className="text-sm font-semibold text-slate-900">
-                        {task.typeName ?? `Tipo ${task.typeId ?? "—"}`}
+                      <div className="font-medium text-slate-900">
+                        {t.typeName ?? `Tipo ${t.typeId ?? "-"}`}
                       </div>
-                      <div className="text-xs text-slate-500">
-                        ID: {task.typeId ?? "—"}
-                      </div>
+                      <div className="text-xs text-slate-500">ID: {t.typeId ?? "-"}</div>
                     </td>
 
-                    {/* Cliente */}
-                    <td className="px-4 py-4 text-sm text-slate-700">
-                      {task.clientName ?? task.clientId ?? "—"}
+                    <td className="px-4 py-4 text-slate-900">{t.clientName ?? t.clientId}</td>
+
+                    <td className="px-4 py-4 text-slate-900">
+                      {t.collaboratorName ?? t.collaboratorId}
                     </td>
 
-                    {/* Colaborador */}
-                    <td className="px-4 py-4 text-sm text-slate-700">
-                      {task.collaboratorName ?? task.collaboratorId ?? "—"}
+                    {/* Fecha de respuesta: usamos checkIn como “respuesta” */}
+                    <td className="px-4 py-4 text-center text-slate-700">
+                      {formatDateTime(t.checkIn)}
                     </td>
 
-                    {/* Fecha de respuesta (usa task.date como venías) */}
-                    <td className="px-4 py-4 text-sm text-slate-600">
-                      {formatDate(task.date)}
-                    </td>
-
-                    {/* Estado (centrado) */}
                     <td className="px-4 py-4 text-center">
-                      <Badge variant={task.finished ? "success" : "warning"}>
-                        {task.finished ? "Finalizada" : "Pendiente"}
-                      </Badge>
+                      <StatusBadge finished={Boolean(t.finished)} />
                     </td>
 
-                    {/* Tiempo */}
-                    <td className="px-4 py-4 text-center text-sm text-slate-500">
-                      {task.duration ?? "—"}
+                    {/* ✅ AQUÍ ESTÁ EL FIX: tiempo por fila */}
+                    <td className="px-4 py-4 text-center font-medium text-slate-700">
+                      {getTaskDurationLabel(t)}
                     </td>
                   </tr>
                 ))
@@ -353,12 +361,8 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {/* MODAL */}
-      <TaskDetailModal
-        open={openModal}
-        task={selectedTask}
-        onClose={() => setOpenModal(false)}
-      />
+      {/* Modal */}
+      <TaskDetailModal open={openModal} task={selectedTask} onClose={closeTask} />
     </AppShell>
   );
 }
