@@ -27,7 +27,7 @@ function formatDateTime(value) {
   if (!value) return "—";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString();
+  return d.toLocaleString(); // si quieres fijar zona horaria, te lo adapto
 }
 
 function minutesDiff(a, b) {
@@ -39,21 +39,27 @@ function minutesDiff(a, b) {
 
 function formatDurationFromMinutes(mins) {
   if (mins == null) return "—";
-  if (mins < 0) return "—"; // por si vienen datos invertidos
+  if (mins < 0) return "—";
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   if (h <= 0) return `${m}m`;
   return `${h}h ${m}m`;
 }
 
+/** Normaliza campos (snake_case o camelCase) */
+function getCheckIn(task) {
+  return task?.checkIn ?? task?.check_in ?? null;
+}
+function getCheckOut(task) {
+  return task?.checkOut ?? task?.check_out ?? null;
+}
+
 /**
- * ✅ Tiempo “real” de ejecución:
- * - Si hay checkIn y checkOut => duración = checkOut - checkIn
- * - Si falta alguno => "—" (igual que venías mostrando)
+ * ✅ Tiempo de ejecución (checkOut - checkIn)
  */
 function getTaskDurationLabel(task) {
-  const checkIn = task?.checkIn ?? task?.check_in ?? null;
-  const checkOut = task?.checkOut ?? task?.check_out ?? null;
+  const checkIn = getCheckIn(task);
+  const checkOut = getCheckOut(task);
 
   if (!checkIn || !checkOut) return "—";
 
@@ -92,7 +98,7 @@ export default function TasksPage() {
 
   const items = tasksQuery.data?.items ?? [];
   const paging = tasksQuery.data?.paging ?? { limit, offset };
-  const total = tasksQuery.data?.total ?? tasksQuery.data?.paging?.total ?? null; // por si tu API luego expone total
+  const total = tasksQuery.data?.total ?? tasksQuery.data?.paging?.total ?? null;
 
   const showingText = (() => {
     const start = offset + 1;
@@ -113,7 +119,7 @@ export default function TasksPage() {
   }
 
   const canPrev = offset > 0;
-  const canNext = items.length === limit; // heurística simple
+  const canNext = items.length === limit;
 
   return (
     <AppShell>
@@ -256,9 +262,7 @@ export default function TasksPage() {
 
           {/* paginación */}
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-            <div className="text-xs text-slate-500">
-              {tasksQuery.isFetching ? "Actualizando…" : "Listo"}
-            </div>
+            <div className="text-xs text-slate-500">{tasksQuery.isFetching ? "Actualizando…" : "Listo"}</div>
 
             <div className="flex items-center gap-2">
               <button
@@ -285,9 +289,7 @@ export default function TasksPage() {
         <div className="border-b border-slate-200/70 bg-slate-50 px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="text-sm font-semibold text-slate-900">Lista de tickets</div>
-            <div className="text-xs text-slate-500">
-              offset {paging.offset ?? offset} • limit {paging.limit ?? limit}
-            </div>
+            <div className="text-xs text-slate-500">offset {paging.offset ?? offset} • limit {paging.limit ?? limit}</div>
           </div>
         </div>
 
@@ -319,42 +321,45 @@ export default function TasksPage() {
                   </td>
                 </tr>
               ) : (
-                items.map((t) => (
-                  <tr
-                    key={t.id}
-                    onClick={() => openTask(t)}
-                    className="cursor-pointer border-b border-slate-100 hover:bg-slate-50/60"
-                  >
-                    <td className="px-4 py-4 font-semibold text-slate-900">{t.id}</td>
+                items.map((t) => {
+                  const checkIn = getCheckIn(t);
 
-                    <td className="px-4 py-4">
-                      <div className="font-medium text-slate-900">
-                        {t.typeName ?? `Tipo ${t.typeId ?? "-"}`}
-                      </div>
-                      <div className="text-xs text-slate-500">ID: {t.typeId ?? "-"}</div>
-                    </td>
+                  return (
+                    <tr
+                      key={t.id}
+                      onClick={() => openTask(t)}
+                      className="cursor-pointer border-b border-slate-100 hover:bg-slate-50/60"
+                    >
+                      <td className="px-4 py-4 font-semibold text-slate-900">{t.id}</td>
 
-                    <td className="px-4 py-4 text-slate-900">{t.clientName ?? t.clientId}</td>
+                      <td className="px-4 py-4">
+                        <div className="font-medium text-slate-900">
+                          {t.typeName ?? `Tipo ${t.typeId ?? "-"}`}
+                        </div>
+                        <div className="text-xs text-slate-500">ID: {t.typeId ?? "-"}</div>
+                      </td>
 
-                    <td className="px-4 py-4 text-slate-900">
-                      {t.collaboratorName ?? t.collaboratorId}
-                    </td>
+                      <td className="px-4 py-4 text-slate-900">{t.clientName ?? t.clientId}</td>
 
-                    {/* Fecha de respuesta: usamos checkIn como “respuesta” */}
-                    <td className="px-4 py-4 text-center text-slate-700">
-                      {formatDateTime(t.checkIn)}
-                    </td>
+                      <td className="px-4 py-4 text-slate-900">
+                        {t.collaboratorName ?? t.collaboratorId}
+                      </td>
 
-                    <td className="px-4 py-4 text-center">
-                      <StatusBadge finished={Boolean(t.finished)} />
-                    </td>
+                      {/* ✅ Fecha de respuesta: CHECK-IN */}
+                      <td className="px-4 py-4 text-center text-slate-700">
+                        {formatDateTime(checkIn)}
+                      </td>
 
-                    {/* ✅ AQUÍ ESTÁ EL FIX: tiempo por fila */}
-                    <td className="px-4 py-4 text-center font-medium text-slate-700">
-                      {getTaskDurationLabel(t)}
-                    </td>
-                  </tr>
-                ))
+                      <td className="px-4 py-4 text-center">
+                        <StatusBadge finished={Boolean(t.finished)} />
+                      </td>
+
+                      <td className="px-4 py-4 text-center font-medium text-slate-700">
+                        {getTaskDurationLabel(t)}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
