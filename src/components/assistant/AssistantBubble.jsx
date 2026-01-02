@@ -20,15 +20,9 @@ function MarkdownMessage({ content }) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          h1: ({ children }) => (
-            <div className="text-sm font-semibold text-slate-900 mb-1">{children}</div>
-          ),
-          h2: ({ children }) => (
-            <div className="text-sm font-semibold text-slate-900 mb-1">{children}</div>
-          ),
-          h3: ({ children }) => (
-            <div className="text-sm font-semibold text-slate-900 mb-1">{children}</div>
-          ),
+          h1: ({ children }) => <div className="text-sm font-semibold text-slate-900 mb-1">{children}</div>,
+          h2: ({ children }) => <div className="text-sm font-semibold text-slate-900 mb-1">{children}</div>,
+          h3: ({ children }) => <div className="text-sm font-semibold text-slate-900 mb-1">{children}</div>,
 
           table: ({ children }) => (
             <div className="my-2 overflow-hidden rounded-xl border border-slate-200/70 bg-white">
@@ -58,16 +52,6 @@ function MarkdownMessage({ content }) {
   );
 }
 
-function toHistory(messages, max = 12) {
-  // Enviamos solo lo necesario para memoria (últimos N mensajes)
-  // roles: "user" | "assistant"
-  const sliced = messages.slice(-max);
-  return sliced.map((m) => ({
-    role: m.role === "user" ? "user" : "assistant",
-    content: String(m.content ?? ""),
-  }));
-}
-
 export default function AssistantBubble() {
   const [open, setOpen] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -79,7 +63,7 @@ export default function AssistantBubble() {
     {
       role: "assistant",
       content:
-        "Hola 👋 Soy tu asistente del dashboard.\n\nPuedo responder con datos reales: pendientes, en progreso, tiempos promedio, top colaboradores, tipos, SLA y fechas.",
+        "Hola 👋 Soy tu asistente del dashboard.\n\nPuedo responder con datos reales: pendientes, en progreso, tiempos promedio, top colaboradores, tipos, SLA y fechas.\n\nTip: para listados grandes usa `limit` y `offset`, o escribe **“más”**.",
     },
   ]);
 
@@ -97,7 +81,7 @@ export default function AssistantBubble() {
       {
         role: "assistant",
         content:
-          "Listo ✅ Chat limpio.\n\nPuedes preguntarme por métricas del dashboard, fechas, SLA, top colaboradores y más.",
+          "Listo ✅ Chat limpio.\n\nPuedes preguntarme por métricas del dashboard, fechas, SLA, top colaboradores y más.\n\nTip: escribe **“más”** para siguiente página en listados.",
       },
     ]);
   }
@@ -106,18 +90,23 @@ export default function AssistantBubble() {
     const msg = String(text || "").trim();
     if (!msg || loading) return;
 
-    // 1) agrego mensaje usuario
+    // Armamos history para “memoria” + paginación ("más")
+    const history = messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
     setMessages((prev) => [...prev, { role: "user", content: msg }]);
     setInput("");
     setLoading(true);
 
-    try {
-      // 2) construyo history con lo que haya + el msg nuevo
-      const nextMessages = [...messages, { role: "user", content: msg }];
-      const history = toHistory(nextMessages, 14);
+   try {
+      // ✅ memoria corta: mandamos los últimos mensajes al backend
+      const history = messages
+        .slice(-16)
+        .map((m) => ({ role: m.role, content: m.content }));
 
-      // 3) llamo backend con message + history
-      const res = await askAssistant({ message: msg, history });
+      const res = await askAssistant(msg, history);
 
       const reply = res?.reply || "No pude responder. Intenta de nuevo.";
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
@@ -137,16 +126,18 @@ export default function AssistantBubble() {
   const suggestions = [
     "Dame un resumen del estado del dashboard.",
     "¿Cuántos tickets pendientes hay y cuántos están en progreso?",
-    "Top 5 colaboradores por tickets (últimos 30 días).",
-    "Distribución por tipo (últimos 30 días).",
-    "Promedio de tiempo de respuesta y de atención.",
-    "Backlog aging de pendientes (0–1d, 2–7d, 8–30d, +30d).",
-    "Outliers: tickets con atención > 6 horas (últimos 30 días).",
-    "Tickets en progreso sin check_out > 6 horas.",
-    "Lista de clientes (limit 50).",
-    "Lista de colaboradores (limit 50).",
+    "Top 10 colaboradores por tickets (últimos 30 días).",
+    "Top 10 clientes por tickets (últimos 30 días).",
+    "Pendientes por colaborador (todos) limit 10",
+    "Backlog por cliente (todos) limit 10",
     "¿Cuántos tickets tiene Stiven Rivera pendientes?",
-    "Backlog por cliente Terminal de Transportes de Fusagasugá",
+    "Backlog por cliente TERMINAL DE TRANSPORTES",
+    "Backlog aging de pendientes (0–1d, 2–7d, 8–30d, +30d).",
+    "Outliers: tickets con atención > 6 horas (últimos 30 días) limit 10",
+    "Tickets en progreso sin check_out > 6 horas (últimos 30 días) limit 10",
+    "Tickets creados entre 2023-01-01 y 2023-12-31 (limit 10)",
+    "Lista de clientes (limit 10)",
+    "Lista de colaboradores (limit 10)",
   ];
 
   return (
@@ -231,7 +222,9 @@ export default function AssistantBubble() {
             {/* Sugerencias (colapsables) */}
             {showSuggestions && (
               <div className="grid grid-cols-1 gap-2 border-t pt-3">
-                <div className="text-[11px] font-semibold uppercase text-slate-500">Sugerencias rápidas</div>
+                <div className="text-[11px] font-semibold uppercase text-slate-500">
+                  Sugerencias rápidas
+                </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {suggestions.map((s) => (
                     <button
