@@ -15,40 +15,37 @@ function SidebarItem({ to, label, collapsed, Icon }) {
       className={({ isActive }) =>
         [
           "group relative flex items-center gap-3 rounded-xl px-3 py-2 transition-colors",
-          isActive
-            ? "bg-[#1177B6]/10 text-[#0E5E90]"
-            : "text-slate-700 hover:bg-slate-100",
+          isActive ? "bg-[#1177B6]/10 text-[#0E5E90]" : "text-slate-700 hover:bg-slate-100",
         ].join(" ")
       }
     >
-      {/* Acento lateral cuando está activo */}
-      <span
-        className={({ isActive }) => ""}
-      />
-      <NavLink
-        to={to}
-        className={({ isActive }) =>
-          [
-            "absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1 rounded-r-full transition",
-            isActive ? "bg-[#1177B6]" : "bg-transparent",
-          ].join(" ")
-        }
-      />
+      {({ isActive }) => (
+        <>
+          {/* Acento lateral cuando está activo (SIN <a> anidado) */}
+          <span
+            aria-hidden="true"
+            className={[
+              "absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1 rounded-r-full transition",
+              isActive ? "bg-[#1177B6]" : "bg-transparent",
+            ].join(" ")}
+          />
 
-      {/* Icono */}
-      <span className="grid h-10 w-10 place-items-center rounded-xl bg-slate-100">
-        <Icon className="h-5 w-5 text-slate-700 group-hover:text-slate-900" />
-      </span>
+          {/* Icono */}
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-slate-100">
+            <Icon className="h-5 w-5 text-slate-700 group-hover:text-slate-900" />
+          </span>
 
-      {/* Label animado */}
-      <span
-        className={[
-          "origin-left whitespace-nowrap text-[15px] font-semibold tracking-tight transition-all duration-200",
-          collapsed ? "scale-x-0 opacity-0" : "scale-x-100 opacity-100",
-        ].join(" ")}
-      >
-        {label}
-      </span>
+          {/* Label animado */}
+          <span
+            className={[
+              "origin-left whitespace-nowrap text-[15px] font-semibold tracking-tight transition-all duration-200",
+              collapsed ? "scale-x-0 opacity-0" : "scale-x-100 opacity-100",
+            ].join(" ")}
+          >
+            {label}
+          </span>
+        </>
+      )}
     </NavLink>
   );
 }
@@ -58,7 +55,7 @@ export default function AppShell({ children }) {
 
   return (
     <div className="flex min-h-screen bg-slate-50">
-      {/* Sidebar (width fijo, sin animar) */}
+      {/* Sidebar */}
       <aside
         className={[
           "sticky top-0 h-screen border-r border-slate-200 bg-white",
@@ -91,36 +88,17 @@ export default function AppShell({ children }) {
           {/* Nav */}
           <nav className="px-3">
             <div className="flex flex-col gap-1">
-              <SidebarItem
-                to="/metrics"
-                label="Métricas"
-                collapsed={collapsed}
-                Icon={ChartBarIcon}
-              />
-              <SidebarItem
-                to="/tasks"
-                label="Tareas"
-                collapsed={collapsed}
-                Icon={ClipboardDocumentCheckIcon}
-              />
-              <SidebarItem
-                to="/clients"
-                label="Clientes"
-                collapsed={collapsed}
-                Icon={BuildingOffice2Icon}
-              />
-              <SidebarItem
-                to="/collaborators"
-                label="Colaboradores"
-                collapsed={collapsed}
-                Icon={UsersIcon}
-              />
+              <SidebarItem to="/metrics" label="Métricas" collapsed={collapsed} Icon={ChartBarIcon} />
+              <SidebarItem to="/tasks" label="Tareas" collapsed={collapsed} Icon={ClipboardDocumentCheckIcon} />
+              <SidebarItem to="/clients" label="Clientes" collapsed={collapsed} Icon={BuildingOffice2Icon} />
+              <SidebarItem to="/collaborators" label="Colaboradores" collapsed={collapsed} Icon={UsersIcon} />
             </div>
           </nav>
 
           {/* Toggle */}
           <div className="mt-auto p-3">
             <button
+              type="button"
               onClick={() => setCollapsed((v) => !v)}
               className={[
                 "flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all duration-200",

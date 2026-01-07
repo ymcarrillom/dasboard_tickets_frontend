@@ -1,25 +1,30 @@
+// src/services/tasks.service.js
 import { api } from "./api";
 
 /**
- * GET /api/tasks
+ * ✅ OJO: finished debe viajar como string: "true" | "false"
+ * Nunca lo conviertas a boolean con Boolean("false") porque da true.
  */
 export async function fetchTasks(params = {}) {
-  const { data } = await api.get("/tasks", { params });
+  const clean = { ...params };
+
+  // Borra vacíos para no mandar finished=""
+  Object.keys(clean).forEach((k) => {
+    if (clean[k] === "" || clean[k] === null || clean[k] === undefined) {
+      delete clean[k];
+    }
+  });
+
+  const { data } = await api.get("/tasks", { params: clean });
   return data; // { items, paging }
 }
 
-/**
- * PATCH /api/tasks/:id/check-in
- */
-export async function patchTaskCheckIn(id) {
+export async function checkInTask(id) {
   const { data } = await api.patch(`/tasks/${id}/check-in`);
-  return data; // { ok, id, checkIn, checkOut, finished }
+  return data;
 }
 
-/**
- * PATCH /api/tasks/:id/check-out
- */
-export async function patchTaskCheckOut(id) {
+export async function checkOutTask(id) {
   const { data } = await api.patch(`/tasks/${id}/check-out`);
-  return data; // { ok, id, checkIn, checkOut, finished }
+  return data;
 }

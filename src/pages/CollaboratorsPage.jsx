@@ -4,9 +4,12 @@ import { useCollaborators } from "../hooks/useCollaborators";
 
 export default function CollaboratorsPage() {
   const [q, setQ] = useState("");
-  const collaboratorsQuery = useCollaborators(q ? { q } : undefined);
 
-  const items = collaboratorsQuery.data?.items ?? [];
+  // ✅ el hook espera un string
+  const collaboratorsQuery = useCollaborators(q);
+
+  // ✅ el service retorna un array directo
+  const items = Array.isArray(collaboratorsQuery.data) ? collaboratorsQuery.data : [];
 
   return (
     <AppShell>

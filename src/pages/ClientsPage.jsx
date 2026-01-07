@@ -11,7 +11,8 @@ export default function ClientsPage() {
     return () => clearTimeout(id);
   }, [q]);
 
-  const clientsQuery = useClients(debouncedQ ? { q: debouncedQ } : undefined);
+  const clientsQuery = useClients({ q: debouncedQ, limit: 200, offset: 0 });
+
 
   const items = clientsQuery.data?.items ?? [];
 

@@ -1,6 +1,9 @@
-import { api } from "./api";
-
-export async function askAssistant(message, history = []) {
-  const { data } = await api.post("/assistant", { message, history });
-  return data; // { reply, meta }
+// src/services/assistant.service.js (frontend)
+export async function askAssistant(message, history) {
+  const res = await fetch("/api/assistant", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, history }),
+  });
+  return res.json();
 }

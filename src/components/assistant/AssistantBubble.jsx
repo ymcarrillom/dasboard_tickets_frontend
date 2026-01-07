@@ -20,13 +20,20 @@ function MarkdownMessage({ content }) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          h1: ({ children }) => <div className="text-sm font-semibold text-slate-900 mb-1">{children}</div>,
-          h2: ({ children }) => <div className="text-sm font-semibold text-slate-900 mb-1">{children}</div>,
-          h3: ({ children }) => <div className="text-sm font-semibold text-slate-900 mb-1">{children}</div>,
+          h1: ({ children }) => (
+            <div className="text-sm font-semibold text-slate-900 mb-1">{children}</div>
+          ),
+          h2: ({ children }) => (
+            <div className="text-sm font-semibold text-slate-900 mb-1">{children}</div>
+          ),
+          h3: ({ children }) => (
+            <div className="text-sm font-semibold text-slate-900 mb-1">{children}</div>
+          ),
 
+          // ✅ FIX: scroll horizontal dentro del chat para tablas
           table: ({ children }) => (
-            <div className="my-2 overflow-hidden rounded-xl border border-slate-200/70 bg-white">
-              <table className="w-full border-collapse text-sm">{children}</table>
+            <div className="my-2 w-full overflow-x-auto rounded-xl border border-slate-200/70 bg-white">
+              <table className="min-w-max w-full border-collapse text-sm">{children}</table>
             </div>
           ),
           thead: ({ children }) => <thead className="bg-slate-50 text-slate-700">{children}</thead>,
@@ -35,14 +42,18 @@ function MarkdownMessage({ content }) {
               {children}
             </th>
           ),
-          td: ({ children }) => <td className="px-3 py-2 align-top border-b border-slate-100">{children}</td>,
+          td: ({ children }) => (
+            <td className="px-3 py-2 align-top border-b border-slate-100">{children}</td>
+          ),
 
           ul: ({ children }) => <ul className="list-disc pl-5">{children}</ul>,
           ol: ({ children }) => <ol className="list-decimal pl-5">{children}</ol>,
           li: ({ children }) => <li className="text-sm text-slate-800">{children}</li>,
 
           code: ({ children }) => (
-            <code className="rounded bg-slate-100 px-1 py-0.5 text-[12px] text-slate-800">{children}</code>
+            <code className="rounded bg-slate-100 px-1 py-0.5 text-[12px] text-slate-800">
+              {children}
+            </code>
           ),
         }}
       >
@@ -63,7 +74,7 @@ export default function AssistantBubble() {
     {
       role: "assistant",
       content:
-        "Hola 👋 Soy tu asistente del dashboard.\n\nPuedo responder con datos reales: pendientes, en progreso, tiempos promedio, top colaboradores, tipos, SLA y fechas.\n\nTip: para listados grandes usa `limit` y `offset`, o escribe **“más”**.",
+        "Hola 👋 Soy tu asistente del dashboard.\n\nPuedo responder con datos reales: pendientes, en progreso, tiempos promedio, top colaboradores, tipos, SLA y fechas.",
     },
   ]);
 
@@ -81,34 +92,32 @@ export default function AssistantBubble() {
       {
         role: "assistant",
         content:
-          "Listo ✅ Chat limpio.\n\nPuedes preguntarme por métricas del dashboard, fechas, SLA, top colaboradores y más.\n\nTip: escribe **“más”** para siguiente página en listados.",
+          "Listo ✅ Chat limpio.\n\nPuedes preguntarme por métricas del dashboard, clientes, colaboradores, backlog, fechas, SLA, outliers y más.",
       },
     ]);
+  }
+
+  function buildHistoryForBackend(nextUserMsg) {
+    const trimmed = messages.slice(-60).map((m) => ({
+      role: m.role,
+      content: String(m.content || ""),
+    }));
+    return [...trimmed, { role: "user", content: nextUserMsg }];
   }
 
   async function sendMessage(text) {
     const msg = String(text || "").trim();
     if (!msg || loading) return;
 
-    // Armamos history para “memoria” + paginación ("más")
-    const history = messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
-
     setMessages((prev) => [...prev, { role: "user", content: msg }]);
     setInput("");
     setLoading(true);
 
-   try {
-      // ✅ memoria corta: mandamos los últimos mensajes al backend
-      const history = messages
-        .slice(-16)
-        .map((m) => ({ role: m.role, content: m.content }));
-
+    try {
+      const history = buildHistoryForBackend(msg);
       const res = await askAssistant(msg, history);
-
       const reply = res?.reply || "No pude responder. Intenta de nuevo.";
+
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
     } catch (e) {
       setMessages((prev) => [
@@ -128,21 +137,18 @@ export default function AssistantBubble() {
     "¿Cuántos tickets pendientes hay y cuántos están en progreso?",
     "Top 10 colaboradores por tickets (últimos 30 días).",
     "Top 10 clientes por tickets (últimos 30 días).",
-    "Pendientes por colaborador (todos) limit 10",
-    "Backlog por cliente (todos) limit 10",
-    "¿Cuántos tickets tiene Stiven Rivera pendientes?",
-    "Backlog por cliente TERMINAL DE TRANSPORTES",
+    "Pendientes por colaborador (todos).",
+    "Backlog por cliente (todos).",
+    "Promedio de tiempo de respuesta y de atención.",
     "Backlog aging de pendientes (0–1d, 2–7d, 8–30d, +30d).",
-    "Outliers: tickets con atención > 6 horas (últimos 30 días) limit 10",
-    "Tickets en progreso sin check_out > 6 horas (últimos 30 días) limit 10",
-    "Tickets creados entre 2023-01-01 y 2023-12-31 (limit 10)",
-    "Lista de clientes (limit 10)",
-    "Lista de colaboradores (limit 10)",
+    "Outliers: tickets con atención > 6 horas (últimos 30 días).",
+    "Tickets en progreso sin check_out > 6 horas.",
+    "Tickets creados entre 2023-01-01 y 2023-12-31 (limit 10).",
+    "Tickets creados entre 20 de diciembre de 2025 y 25 de diciembre de 2025 (limit 10).",
   ];
 
   return (
     <>
-      {/* PANEL */}
       {open && (
         <div className="fixed bottom-20 right-4 z-[9999] w-[92vw] max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
           <div className="flex items-center justify-between border-b bg-slate-50 px-4 py-3">
@@ -204,7 +210,6 @@ export default function AssistantBubble() {
                 );
               })}
 
-              {/* Typing (pro) */}
               {loading ? (
                 <div className="flex justify-start">
                   <div className="rounded-2xl border border-slate-200/70 bg-slate-100 px-3 py-2 text-sm text-slate-700">
@@ -219,7 +224,6 @@ export default function AssistantBubble() {
               ) : null}
             </div>
 
-            {/* Sugerencias (colapsables) */}
             {showSuggestions && (
               <div className="grid grid-cols-1 gap-2 border-t pt-3">
                 <div className="text-[11px] font-semibold uppercase text-slate-500">
@@ -267,7 +271,6 @@ export default function AssistantBubble() {
         </div>
       )}
 
-      {/* BURBUJA */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

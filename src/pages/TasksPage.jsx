@@ -27,7 +27,7 @@ function formatDateTime(value) {
   if (!value) return "—";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString(); // si quieres fijar zona horaria, te lo adapto
+  return d.toLocaleString();
 }
 
 function minutesDiff(a, b) {
@@ -93,12 +93,20 @@ export default function TasksPage() {
   );
 
   const tasksQuery = useTasks(params);
-  const clientsQuery = useClients({ limit: 200 });
-  const collaboratorsQuery = useCollaborators({ limit: 200 });
 
+  // ✅ Estos hooks probablemente devuelven {items: [...]}. Los dejamos igual.
+  const clientsQuery = useClients({ limit: 500 });
+
+  // ✅ useCollaborators espera un string (q), NO un objeto
+  const collaboratorsQuery = useCollaborators("");
+
+  // ✅ tasksQuery sí devuelve {items, paging}
   const items = tasksQuery.data?.items ?? [];
   const paging = tasksQuery.data?.paging ?? { limit, offset };
   const total = tasksQuery.data?.total ?? tasksQuery.data?.paging?.total ?? null;
+
+  // ✅ collaboratorsQuery.data es un ARRAY
+  const collaborators = Array.isArray(collaboratorsQuery.data) ? collaboratorsQuery.data : [];
 
   const showingText = (() => {
     const start = offset + 1;
@@ -233,8 +241,8 @@ export default function TasksPage() {
                 className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[#1177B6] focus:ring-4 focus:ring-[#1177B6]/10 disabled:opacity-60"
               >
                 <option value="">Todos</option>
-                {(collaboratorsQuery.data?.items ?? []).map((c) => (
-                  <option key={c.id} value={c.id}>
+                {collaborators.map((c) => (
+                  <option key={c.id} value={String(c.id)}>
                     {c.name}
                   </option>
                 ))}

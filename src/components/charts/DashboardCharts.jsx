@@ -1,6 +1,6 @@
-import React, { useMemo } from "react";
+// src/components/charts/DashboardCharts.jsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ResponsiveContainer,
   BarChart,
   Bar,
   XAxis,
@@ -34,7 +34,8 @@ function Card({ title, subtitle, children }) {
         <div className="text-sm font-semibold text-slate-900">{title}</div>
         <div className="text-xs text-slate-500">{subtitle}</div>
       </div>
-      <div className="p-4">{children}</div>
+      {/* ✅ min-w-0 para evitar problemas en grid/flex */}
+      <div className="p-4 min-w-0">{children}</div>
     </div>
   );
 }
@@ -60,13 +61,46 @@ function NiceTooltip({ active, payload, label }) {
   );
 }
 
+/**
+ * ✅ Mide el contenedor y SOLO renderiza cuando w/h > 0.
+ * Esto elimina el warning width(-1)/height(-1) de Recharts.
+ */
+function ChartBox({ height = 260, children }) {
+  const ref = useRef(null);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const ro = new ResizeObserver((entries) => {
+      const cr = entries?.[0]?.contentRect;
+      if (!cr) return;
+
+      const w = Math.floor(cr.width);
+      const h = Math.floor(cr.height);
+
+      // evita re-renders inútiles
+      setSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+    });
+
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <div ref={ref} className="w-full min-w-0" style={{ height }}>
+      {size.w > 0 && size.h > 0 ? children(size) : null}
+    </div>
+  );
+}
+
 export default function DashboardCharts({
   summary,
   timeseriesItems = [],
   byTypeItems = [],
   byCollaboratorItems = [],
 }) {
-  // ✅ Estado (pendientes vs finalizadas) con valores reales
   const statusData = useMemo(() => {
     const pending = Number(summary?.pending ?? 0);
     const finished = Number(summary?.finished ?? 0);
@@ -98,7 +132,6 @@ export default function DashboardCharts({
     }));
   }, [byCollaboratorItems]);
 
-  // Para la dona + lista con números
   const typeLegend = useMemo(() => {
     return typeTop.map((t, idx) => ({
       ...t,
@@ -110,72 +143,72 @@ export default function DashboardCharts({
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       {/* Estado */}
       <Card title="Estado" subtitle="Pendientes vs Finalizadas">
-        <div className="h-[260px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={statusData} margin={{ top: 10, right: 16, left: 0, bottom: 10 }}>
+        <ChartBox height={260}>
+          {({ w, h }) => (
+            <BarChart width={w} height={h} data={statusData} margin={{ top: 10, right: 16, left: 0, bottom: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
               <XAxis dataKey="name" tick={{ fill: "#64748B", fontSize: 12 }} />
               <YAxis tick={{ fill: "#64748B", fontSize: 12 }} />
               <Tooltip content={<NiceTooltip />} />
               <Bar dataKey="value" name="Total" radius={[10, 10, 0, 0]}>
-                {/* ✅ 2 colores: naranja pendientes, azul finalizadas */}
                 {statusData.map((_, i) => (
                   <Cell key={i} fill={i === 0 ? "#D17745" : "#1177B6"} />
                 ))}
               </Bar>
             </BarChart>
-          </ResponsiveContainer>
-        </div>
+          )}
+        </ChartBox>
       </Card>
 
       {/* Tendencia */}
       <Card title="Tendencia" subtitle="Total de tareas por día">
-        <div className="h-[260px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={trendData} margin={{ top: 10, right: 16, left: 0, bottom: 10 }}>
+        <ChartBox height={260}>
+          {({ w, h }) => (
+            <LineChart width={w} height={h} data={trendData} margin={{ top: 10, right: 16, left: 0, bottom: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
               <XAxis dataKey="day" tick={{ fill: "#64748B", fontSize: 11 }} />
               <YAxis tick={{ fill: "#64748B", fontSize: 12 }} />
               <Tooltip content={<NiceTooltip />} />
-              <Line
-                type="monotone"
-                dataKey="total"
-                name="Total"
-                stroke="#D17745"
-                strokeWidth={2.5}
-                dot={false}
-              />
+              <Line type="monotone" dataKey="total" name="Total" stroke="#D17745" strokeWidth={2.5} dot={false} />
             </LineChart>
-          </ResponsiveContainer>
-        </div>
+          )}
+        </ChartBox>
       </Card>
 
-      {/* Distribución por tipo (Dona + lista pegada) */}
+      {/* Distribución por tipo */}
       <Card title="Distribución por tipo" subtitle="Top tipos + otros">
-        <div className="flex flex-col items-center gap-3 md:flex-row md:items-start md:justify-between md:gap-4">
+        <div className="flex flex-col items-center gap-3 md:flex-row md:items-start md:justify-between md:gap-4 min-w-0">
           {/* Dona */}
-          <div className="h-[220px] w-[220px] shrink-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={typeLegend}
-                  dataKey="total"
-                  nameKey="name"
-                  innerRadius={60}
-                  outerRadius={90}
-                  paddingAngle={2}
-                >
-                  {typeLegend.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip content={<NiceTooltip />} />
-              </PieChart>
-            </ResponsiveContainer>
+          <div className="shrink-0" style={{ width: 220, height: 220 }}>
+            <ChartBox height={220}>
+              {({ w, h }) => {
+                const minSide = Math.min(w, h);
+                const outer = Math.max(70, Math.floor(minSide / 2) - 10);
+                const inner = Math.floor(outer * 0.65);
+
+                return (
+                  <PieChart width={w} height={h}>
+                    <Pie
+                      data={typeLegend}
+                      dataKey="total"
+                      nameKey="name"
+                      innerRadius={inner}
+                      outerRadius={outer}
+                      paddingAngle={2}
+                    >
+                      {typeLegend.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<NiceTooltip />} />
+                  </PieChart>
+                );
+              }}
+            </ChartBox>
           </div>
 
-          {/* ✅ Lista más pegada (menos separación y más “pro”) */}
-          <div className="w-full md:pl-1">
+          {/* Lista */}
+          <div className="w-full md:pl-1 min-w-0">
             {typeLegend.length === 0 ? (
               <div className="text-center text-sm text-slate-500">Sin datos</div>
             ) : (
@@ -186,10 +219,7 @@ export default function DashboardCharts({
                     className="flex items-center justify-between rounded-xl border border-slate-200/70 bg-white px-3 py-2"
                   >
                     <div className="flex min-w-0 items-center gap-2">
-                      <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-sm"
-                        style={{ background: it.color }}
-                      />
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: it.color }} />
                       <div className="truncate text-xs font-semibold uppercase tracking-wide text-slate-900">
                         {it.name}
                       </div>
@@ -207,9 +237,9 @@ export default function DashboardCharts({
 
       {/* Tickets por colaborador */}
       <Card title="Tickets por colaborador" subtitle="Top 10">
-        <div className="h-[260px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={collabTop} margin={{ top: 10, right: 16, left: 0, bottom: 28 }}>
+        <ChartBox height={260}>
+          {({ w, h }) => (
+            <BarChart width={w} height={h} data={collabTop} margin={{ top: 10, right: 16, left: 0, bottom: 28 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
               <XAxis
                 dataKey="name"
@@ -223,8 +253,8 @@ export default function DashboardCharts({
               <Tooltip content={<NiceTooltip />} />
               <Bar dataKey="total" name="Total" fill="#1177B6" radius={[10, 10, 0, 0]} />
             </BarChart>
-          </ResponsiveContainer>
-        </div>
+          )}
+        </ChartBox>
       </Card>
     </div>
   );
