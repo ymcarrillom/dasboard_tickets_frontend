@@ -23,13 +23,157 @@ function normalize(s) {
     .trim();
 }
 
+function uniq(arr) {
+  const out = [];
+  const seen = new Set();
+  for (const x of arr || []) {
+    const k = String(x || "").trim();
+    if (!k) continue;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(k);
+  }
+  return out;
+}
+
+function isMoreRequest(text) {
+  const t = normalize(text);
+  return (
+    t === "mas" ||
+    t === "más" ||
+    t === "siguiente" ||
+    t.startsWith("mas ") ||
+    t.startsWith("más ") ||
+    t.includes("siguiente")
+  );
+}
+
+function wantsCountOnly(text) {
+  const t = normalize(text);
+  return (
+    t === "cantidad" ||
+    t === "solo la cantidad" ||
+    t === "solo cantidad" ||
+    t === "dame la cantidad" ||
+    t === "dame solo la cantidad" ||
+    t.includes("solo la cantidad") ||
+    t.includes("solo cantidad") ||
+    t.includes("cantidad de") ||
+    t.includes("cuantos") ||
+    t.includes("cuantas")
+  );
+}
+
+function isNumericOnly(text) {
+  const raw = String(text || "").trim();
+  return /^(\d{1,3})(?:[.)\s]+)?$/.test(raw);
+}
+
 function isLongAssistantMessage(content) {
   const s = String(content || "");
   const lines = s.split("\n").length;
   const looksLikeTable = /\|.+\|/.test(s) && s.includes("---");
   const listCount = (s.match(/^\s*[-*]\s+/gm) || []).length;
-  // ✅ ajusta el umbral si quieres
   return lines > 18 || looksLikeTable || listCount >= 12;
+}
+
+function getLastAssistantNonLocal(messages = []) {
+  for (let i = (messages?.length || 0) - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m?.role !== "assistant") continue;
+    if (m?.meta?.localOnly) continue;
+    return m;
+  }
+  return null;
+}
+
+// ✅ fallback: inferir sugerencias si el backend no las manda
+function inferSuggestionsFromAssistantText(text) {
+  const t = normalize(text || "");
+  const s = [];
+
+  // paginación
+  if (t.includes("para ver mas") || t.includes("para mas resultados") || t.includes("escribe") && t.includes("mas")) {
+    s.push("más");
+  }
+
+  // conteo
+  if (t.includes("solo la cantidad") || t.includes("solo cantidad") || t.includes("para contar")) {
+    s.push("solo la cantidad");
+  }
+
+  // extras comunes (opcional)
+  if (t.includes("clientes criticos") || t.includes("clientes con mas pendientes")) {
+    s.push("¿Qué clientes están críticos?");
+  }
+  if (t.includes("quien esta mas cargado") || t.includes("carga por persona")) {
+    s.push("¿Quién está más cargado?");
+  }
+
+  return uniq(s).slice(0, 8);
+}
+
+// ✅ fallback: extraer opciones de disambiguación desde el texto
+function inferOptionsFromAssistantText(text) {
+  const raw = String(text || "");
+  const t = normalize(raw);
+  if (!t.includes("coincidencias")) return [];
+
+  const lines = raw
+    .split("\n")
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+  const opts = [];
+
+  for (const line of lines) {
+    const nl = normalize(line);
+
+    // ignora headers / frases
+    if (
+      nl.includes("coincidencias") ||
+      nl.includes("por favor") ||
+      nl.includes("responde") ||
+      nl.includes("numero") ||
+      nl.includes("número") ||
+      nl.includes("nombre") ||
+      nl.includes("| # |") ||
+      nl.includes("| opcion") ||
+      nl.includes("| opción")
+    ) continue;
+
+    // tabla markdown: | 3 | HOMI GIRARDOT |
+    const row = line.match(/^\|\s*\d{1,3}\s*\|\s*([^|]+?)\s*\|/);
+    if (row) {
+      const name = row[1].trim();
+      if (name) opts.push({ name });
+      continue;
+    }
+
+    // numerado: 3) HOMI GIRARDOT
+    const numLine = line.match(/^\d{1,3}\s*[\)\.\-:]\s*(.+)$/);
+    if (numLine) {
+      const name = numLine[1].trim();
+      if (name) opts.push({ name });
+      continue;
+    }
+
+    // bullets
+    const bullet = line.replace(/^[-*•]\s+/, "").trim();
+    if (bullet) opts.push({ name: bullet });
+  }
+
+  // únicos
+  const seen = new Set();
+  const out = [];
+  for (const o of opts) {
+    const k = normalize(o?.name);
+    if (!k) continue;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ name: o.name });
+  }
+  return out.slice(0, 12);
 }
 
 function MarkdownMessage({ content }) {
@@ -39,23 +183,32 @@ function MarkdownMessage({ content }) {
         remarkPlugins={[remarkGfm]}
         components={{
           h1: ({ children }) => (
-            <div className="text-sm font-semibold text-slate-900 mb-1">{children}</div>
+            <div className="text-sm font-semibold text-slate-900 mb-1">
+              {children}
+            </div>
           ),
           h2: ({ children }) => (
-            <div className="text-sm font-semibold text-slate-900 mb-1">{children}</div>
+            <div className="text-sm font-semibold text-slate-900 mb-1">
+              {children}
+            </div>
           ),
           h3: ({ children }) => (
-            <div className="text-sm font-semibold text-slate-900 mb-1">{children}</div>
+            <div className="text-sm font-semibold text-slate-900 mb-1">
+              {children}
+            </div>
           ),
 
-          // ✅ Scroll horizontal + vertical controlado para tablas
           table: ({ children }) => (
             <div className="my-2 rounded-xl border border-slate-200/70 bg-white overflow-auto max-h-[260px]">
-              <table className="min-w-[760px] w-full border-collapse text-sm">{children}</table>
+              <table className="min-w-[760px] w-full border-collapse text-sm">
+                {children}
+              </table>
             </div>
           ),
           thead: ({ children }) => (
-            <thead className="bg-slate-50 text-slate-700 sticky top-0 z-10">{children}</thead>
+            <thead className="bg-slate-50 text-slate-700 sticky top-0 z-10">
+              {children}
+            </thead>
           ),
           th: ({ children }) => (
             <th className="px-3 py-2 text-left text-[12px] font-semibold uppercase tracking-wide border-b border-slate-200/70 whitespace-nowrap">
@@ -68,7 +221,6 @@ function MarkdownMessage({ content }) {
             </td>
           ),
 
-          // ✅ Scroll interno si lista es larga
           ul: ({ children }) => {
             const count = React.Children.count(children);
             return (
@@ -95,7 +247,9 @@ function MarkdownMessage({ content }) {
               </ol>
             );
           },
-          li: ({ children }) => <li className="text-sm text-slate-800">{children}</li>,
+          li: ({ children }) => (
+            <li className="text-sm text-slate-800">{children}</li>
+          ),
 
           code: ({ children }) => (
             <code className="rounded bg-slate-100 px-1 py-0.5 text-[12px] text-slate-800">
@@ -118,9 +272,49 @@ function MenuButton({ title, subtitle, onClick }) {
       className="w-full rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm hover:bg-slate-50"
     >
       <div className="text-sm font-semibold text-slate-900">{title}</div>
-      {subtitle ? <div className="text-xs text-slate-500">{subtitle}</div> : null}
+      {subtitle ? (
+        <div className="text-xs text-slate-500">{subtitle}</div>
+      ) : null}
     </button>
   );
+}
+
+function Chip({ label, onClick, disabled }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={[
+        "rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm",
+        "hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed",
+      ].join(" ")}
+      title={label}
+    >
+      {label}
+    </button>
+  );
+}
+
+// ✅ wrapper compatible con ambos estilos de service:
+// - askAssistant(message, history)
+// - askAssistant({ message, history })
+async function callAssistant(message, history) {
+  try {
+    if (typeof askAssistant !== "function")
+      throw new Error("askAssistant not a function");
+    if (askAssistant.length <= 1) {
+      return await askAssistant({ message, history });
+    }
+    return await askAssistant(message, history);
+  } catch (e) {
+    // fallback al otro formato por si length no ayuda
+    try {
+      return await askAssistant({ message, history });
+    } catch {
+      return await askAssistant(message, history);
+    }
+  }
 }
 
 export default function AssistantBubble() {
@@ -137,6 +331,11 @@ export default function AssistantBubble() {
   // wizard
   const [flow, setFlow] = useState(null); // { title, prompt, placeholder, buildBackend, buildDisplay, returnPath }
 
+  // ✅ meta + estado para chips/disambiguación
+  const [lastMeta, setLastMeta] = useState(null);
+  const [lastNonControlQuery, setLastNonControlQuery] = useState(""); // última consulta “real” (no "más" ni "solo la cantidad")
+  const lastBackendSentRef = useRef("");
+
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -150,7 +349,10 @@ export default function AssistantBubble() {
   useEffect(() => {
     if (!open) return;
     setTimeout(() => {
-      listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+      listRef.current?.scrollTo({
+        top: listRef.current.scrollHeight,
+        behavior: "smooth",
+      });
     }, 50);
   }, [open, messages, loading]);
 
@@ -158,29 +360,33 @@ export default function AssistantBubble() {
     setFlow(null);
     setMenuOpen(false);
     setMenuPath([]);
+    setLastMeta(null);
+    setLastNonControlQuery("");
+    lastBackendSentRef.current = "";
     setMessages([
       {
         role: "assistant",
-        content:
-          "Listo ✅ Chat limpio.\n\nAbre **Menú** para elegir acciones por botones.",
+        content: "Listo ✅ Chat limpio.\n\nAbre **Menú** para elegir acciones por botones.",
       },
     ]);
   }
 
   function pushLocalAssistant(content) {
-    setMessages((prev) => [...prev, { role: "assistant", content, meta: { localOnly: true } }]);
+    setMessages((prev) => [
+      ...prev,
+      { role: "assistant", content, meta: { localOnly: true } },
+    ]);
   }
 
-  function buildHistoryForBackend(nextUserMsg) {
-    const trimmed = messages
+  // ✅ HISTORY: NO duplicar el message actual dentro del history
+  function buildHistoryForBackend() {
+    return messages
       .slice(-60)
       .filter((m) => !m?.meta?.localOnly)
       .map((m) => ({
         role: m.role,
         content: String(m.backendContent ?? m.content ?? ""),
       }));
-
-    return [...trimmed, { role: "user", content: String(nextUserMsg || "") }];
   }
 
   async function sendMessage(text, opts = {}) {
@@ -220,15 +426,41 @@ export default function AssistantBubble() {
       setInput("");
     }
 
-    setMessages((prev) => [...prev, { role: "user", content: displayText, backendContent: backendText }]);
+    // ✅ Conteo robusto
+    const isCount = wantsCountOnly(raw);
+    const isMore = isMoreRequest(raw);
+    const isNum = isNumericOnly(raw);
+    const isControl = isCount || isMore || isNum;
+
+    if (isCount && lastNonControlQuery) {
+      const base = normalize(lastNonControlQuery);
+      if (!base.includes("solo la cantidad") && !base.includes("solo cantidad")) {
+        backendText = `${lastNonControlQuery} solo la cantidad`;
+      }
+    }
+
+    if (!isControl) {
+      setLastNonControlQuery(backendText);
+    }
+
+    lastBackendSentRef.current = backendText;
+
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: displayText, backendContent: backendText },
+    ]);
     setInput("");
     setLoading(true);
 
     try {
-      const history = buildHistoryForBackend(backendText);
-      const res = await askAssistant(backendText, history);
+      const history = buildHistoryForBackend();
+      const res = await callAssistant(backendText, history);
+
       const reply = res?.reply || "No pude responder. Intenta de nuevo.";
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      const meta = res?.meta || null;
+
+      setMessages((prev) => [...prev, { role: "assistant", content: reply, meta }]);
+      setLastMeta(meta);
     } catch (e) {
       setMessages((prev) => [
         ...prev,
@@ -236,8 +468,10 @@ export default function AssistantBubble() {
           role: "assistant",
           content:
             "Tuve un problema consultando el backend.\n\n✅ Revisa:\n- que el servidor esté arriba\n- que Vite proxy esté activo\n- que no haya error CORS en consola",
+          meta: { ok: false, mode: "error" },
         },
       ]);
+      setLastMeta({ ok: false, mode: "error" });
     } finally {
       setLoading(false);
     }
@@ -467,13 +701,33 @@ export default function AssistantBubble() {
     }
   }
 
+  // ✅ Fuente de meta: último assistant real (mejor) o lastMeta (fallback)
+  const lastAssistantMsg = getLastAssistantNonLocal(messages);
+  const metaSource = lastAssistantMsg?.meta || lastMeta || {};
+
+  let suggestions = Array.isArray(metaSource?.suggestions) ? metaSource.suggestions : [];
+  let optionsRaw = Array.isArray(metaSource?.options) ? metaSource.options : [];
+
+  // ✅ fallback de suggestions si backend no mandó
+  if (!suggestions.length && lastAssistantMsg?.content) {
+    suggestions = inferSuggestionsFromAssistantText(lastAssistantMsg.content);
+  }
+
+  // ✅ fallback de options si backend no mandó
+  if (!optionsRaw.length && lastAssistantMsg?.content) {
+    optionsRaw = inferOptionsFromAssistantText(lastAssistantMsg.content);
+  }
+
+  const disambiguationOptions = optionsRaw
+    .map((o) => (typeof o === "string" ? { name: o } : o))
+    .filter((o) => o && o.name);
+
   return (
     <>
       {open && (
         <div
           className={[
             "fixed bottom-20 right-4 z-[9999] w-[92vw] max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl flex flex-col",
-            // ✅ clave: evita que el widget crezca infinito y mande header/menú “muy arriba”
             "h-[72vh] max-h-[72vh]",
           ].join(" ")}
         >
@@ -516,7 +770,7 @@ export default function AssistantBubble() {
 
           {/* Middle: menú lateral + chat */}
           <div className="flex min-h-0 flex-1">
-            {/* Menú lateral (al lado, no arriba) */}
+            {/* Menú lateral */}
             {menuOpen && (
               <aside className="w-64 border-r border-slate-200 bg-white">
                 <div className="flex h-full flex-col">
@@ -592,7 +846,6 @@ export default function AssistantBubble() {
                           {isUser ? (
                             <div className="whitespace-pre-wrap">{m.content}</div>
                           ) : (
-                            // ✅ clave: si el mensaje es largo, scroll dentro del mensaje
                             <div className={longAssistant ? "max-h-[320px] overflow-auto pr-1" : ""}>
                               <MarkdownMessage content={m.content} />
                             </div>
@@ -616,6 +869,38 @@ export default function AssistantBubble() {
                   ) : null}
                 </div>
               </div>
+
+              {/* ✅ Barrita de chips */}
+              {(disambiguationOptions.length > 0 || suggestions.length > 0) && !loading ? (
+                <div className="border-t bg-white px-4 py-2">
+                  {/* Disambiguación: botones 1..N */}
+                  {disambiguationOptions.length > 0 ? (
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {disambiguationOptions.map((o, i) => (
+                        <Chip
+                          key={`${i}-${o.name}`}
+                          label={`${i + 1}) ${o.name}`}
+                          onClick={() =>
+                            sendMessage(String(i + 1), {
+                              displayText: `${i + 1}) ${o.name}`,
+                              backendText: String(i + 1),
+                            })
+                          }
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {/* Suggestions */}
+                  {suggestions.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {suggestions.slice(0, 8).map((s) => (
+                        <Chip key={s} label={s} onClick={() => sendMessage(s)} />
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               {/* Input */}
               <div className="border-t bg-white px-4 py-3">
