@@ -15,8 +15,8 @@ import {
 } from "recharts";
 
 const COLORS = [
-  "#1177B6", // azul Lira
-  "#D17745", // naranja Lira
+  "#1177B6",
+  "#D17745",
   "#10B981",
   "#8B5CF6",
   "#F59E0B",
@@ -34,7 +34,6 @@ function Card({ title, subtitle, children }) {
         <div className="text-sm font-semibold text-slate-900">{title}</div>
         <div className="text-xs text-slate-500">{subtitle}</div>
       </div>
-      {/* ✅ min-w-0 para evitar problemas en grid/flex */}
       <div className="p-4 min-w-0">{children}</div>
     </div>
   );
@@ -46,8 +45,8 @@ function NiceTooltip({ active, payload, label }) {
     <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-sm">
       <div className="font-semibold text-slate-900">{label}</div>
       <div className="mt-1 space-y-1">
-        {payload.map((p) => (
-          <div key={p.dataKey} className="flex items-center gap-2">
+        {payload.map((p, idx) => (
+          <div key={`${p.dataKey}-${idx}`} className="flex items-center gap-2">
             <span
               className="inline-block h-2.5 w-2.5 rounded-full"
               style={{ background: p.color }}
@@ -62,35 +61,86 @@ function NiceTooltip({ active, payload, label }) {
 }
 
 /**
- * ✅ Mide el contenedor y SOLO renderiza cuando w/h > 0.
- * Esto elimina el warning width(-1)/height(-1) de Recharts.
+ * ChartBox robusto:
+ * - Guarda el último tamaño válido (lastGood)
+ * - Ignora tamaños 0 (evita parpadeo)
+ * - Fallback si ResizeObserver no existe
+ * - Soporta children como función o nodo
  */
 function ChartBox({ height = 260, children }) {
   const ref = useRef(null);
+
+  const lastGood = useRef({ w: 1, h: height }); // fallback seguro (1 evita "0")
   const [size, setSize] = useState({ w: 0, h: 0 });
+
+  const commit = (w, h) => {
+    const ww = Math.floor(w);
+    const hh = Math.floor(h);
+
+    // ignorar tamaños inválidos para no desmontar
+    if (ww <= 0 || hh <= 0) return;
+
+    lastGood.current = { w: ww, h: hh };
+    setSize((prev) => (prev.w === ww && prev.h === hh ? prev : { w: ww, h: hh }));
+  };
+
+  // medición inicial (sin depender del observer)
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    commit(rect.width, rect.height);
+
+    // re-medir un tick después por si el layout cambia
+    const t = setTimeout(() => {
+      const r2 = el.getBoundingClientRect();
+      commit(r2.width, r2.height);
+    }, 50);
+
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [height]);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
 
-    const ro = new ResizeObserver((entries) => {
-      const cr = entries?.[0]?.contentRect;
-      if (!cr) return;
+    // ✅ ResizeObserver si existe
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver((entries) => {
+        const cr = entries?.[0]?.contentRect;
+        if (!cr) return;
+        commit(cr.width, cr.height);
+      });
+      ro.observe(el);
+      return () => ro.disconnect();
+    }
 
-      const w = Math.floor(cr.width);
-      const h = Math.floor(cr.height);
-
-      // evita re-renders inútiles
-      setSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
-    });
-
-    ro.observe(el);
-    return () => ro.disconnect();
+    // ✅ Fallback: window resize
+    const onResize = () => {
+      const rect = el.getBoundingClientRect();
+      commit(rect.width, rect.height);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  const effective = size.w > 0 && size.h > 0 ? size : lastGood.current;
+
   return (
-    <div ref={ref} className="w-full min-w-0" style={{ height }}>
-      {size.w > 0 && size.h > 0 ? children(size) : null}
+    <div ref={ref} className="w-full min-w-0" style={{ height, minHeight: height }}>
+      {typeof children === "function" ? (
+        effective.w > 0 && effective.h > 0 ? (
+          children(effective)
+        ) : (
+          <div className="flex h-full w-full items-center justify-center rounded-xl bg-slate-50 text-sm text-slate-500">
+            Cargando gráfico...
+          </div>
+        )
+      ) : (
+        children
+      )}
     </div>
   );
 }
@@ -141,7 +191,6 @@ export default function DashboardCharts({
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      {/* Estado */}
       <Card title="Estado" subtitle="Pendientes vs Finalizadas">
         <ChartBox height={260}>
           {({ w, h }) => (
@@ -160,7 +209,6 @@ export default function DashboardCharts({
         </ChartBox>
       </Card>
 
-      {/* Tendencia */}
       <Card title="Tendencia" subtitle="Total de tareas por día">
         <ChartBox height={260}>
           {({ w, h }) => (
@@ -175,10 +223,8 @@ export default function DashboardCharts({
         </ChartBox>
       </Card>
 
-      {/* Distribución por tipo */}
       <Card title="Distribución por tipo" subtitle="Top tipos + otros">
         <div className="flex flex-col items-center gap-3 md:flex-row md:items-start md:justify-between md:gap-4 min-w-0">
-          {/* Dona */}
           <div className="shrink-0" style={{ width: 220, height: 220 }}>
             <ChartBox height={220}>
               {({ w, h }) => {
@@ -207,7 +253,6 @@ export default function DashboardCharts({
             </ChartBox>
           </div>
 
-          {/* Lista */}
           <div className="w-full md:pl-1 min-w-0">
             {typeLegend.length === 0 ? (
               <div className="text-center text-sm text-slate-500">Sin datos</div>
@@ -235,7 +280,6 @@ export default function DashboardCharts({
         </div>
       </Card>
 
-      {/* Tickets por colaborador */}
       <Card title="Tickets por colaborador" subtitle="Top 10">
         <ChartBox height={260}>
           {({ w, h }) => (

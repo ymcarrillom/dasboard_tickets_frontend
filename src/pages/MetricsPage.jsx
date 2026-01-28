@@ -49,8 +49,11 @@ export default function MetricsPage() {
   const chartsLoading =
     timeseriesQuery.isLoading || byTypeQuery.isLoading || byCollaboratorQuery.isLoading;
 
-  const chartsError =
-    timeseriesQuery.isError || byTypeQuery.isError || byCollaboratorQuery.isError;
+ const chartsError =
+  (!series.length && timeseriesQuery.isError) ||
+  (!byType.length && byTypeQuery.isError) ||
+  (!byCollab.length && byCollaboratorQuery.isError);
+
 
   const completionRate =
     summary.total > 0 ? Math.round((summary.finished / summary.total) * 100) : 0;
